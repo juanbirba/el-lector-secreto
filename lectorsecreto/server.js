@@ -20,9 +20,14 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS reviews(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     story_id INTEGER, reviewer_id INTEGER,
-    good TEXT, improve TEXT, overall TEXT, created INTEGER
+    good TEXT, improve TEXT, overall TEXT, rating REAL DEFAULT 0,
+    reveal_status TEXT DEFAULT 'none', created INTEGER
   );
 `);
+// Migracion segura: agrega columnas nuevas si la base ya existia sin ellas.
+for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
+  try { db.exec(`ALTER TABLE reviews ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
+}
 
 const app = express();
 app.use(express.json());
@@ -95,31 +100,75 @@ app.get('/api/feed', auth, (req, res) => {
 
 // --- Enviar devolución (gana créditos) ---
 app.post('/api/reviews', auth, (req, res) => {
-  const { story_id, good, improve, overall } = req.body;
+  const { story_id, good, improve, overall, rating } = req.body;
   const s = db.prepare('SELECT * FROM stories WHERE id=?').get(story_id);
   if (!s) return res.status(404).json({ error: 'Cuento no encontrado' });
   if (s.author_id === req.session.uid) return res.status(400).json({ error: 'No podés reseñar tu propio cuento' });
   const dup = db.prepare('SELECT 1 FROM reviews WHERE story_id=? AND reviewer_id=?').get(story_id, req.session.uid);
   if (dup) return res.status(400).json({ error: 'Ya reseñaste este cuento' });
   if (!good || !improve || !overall) return res.status(400).json({ error: 'Completá las tres partes de la devolución' });
-  db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,created) VALUES(?,?,?,?,?,?)')
-    .run(story_id, req.session.uid, good.trim(), improve.trim(), overall.trim(), Date.now());
+  let r = parseFloat(rating);
+  if (isNaN(r) || r < 0.5 || r > 5) return res.status(400).json({ error: 'Elegí una puntuación de estrellas' });
+  r = Math.round(r * 2) / 2; // redondea a media estrella
+  db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,rating,created) VALUES(?,?,?,?,?,?,?)')
+    .run(story_id, req.session.uid, good.trim(), improve.trim(), overall.trim(), r, Date.now());
   const reward = REWARD[s.length];
   db.prepare('UPDATE users SET credits=credits+? WHERE id=?').run(reward, req.session.uid);
   res.json({ ok: true, reward });
 });
 
-// --- Mis cuentos + devoluciones recibidas ---
+// --- Mis cuentos + devoluciones recibidas (anónimas, con opción de descubrir) ---
 app.get('/api/mine', auth, (req, res) => {
   const stories = db.prepare('SELECT * FROM stories WHERE author_id=? ORDER BY created DESC').all(req.session.uid);
-  const out = stories.map(s => ({
-    ...s,
-    reviews: db.prepare(`
-      SELECT r.good,r.improve,r.overall,r.created,u.name AS reviewer
+  const out = stories.map(s => {
+    const raw = db.prepare(`
+      SELECT r.id,r.good,r.improve,r.overall,r.rating,r.reveal_status,r.created,u.name AS reviewer_name
       FROM reviews r JOIN users u ON u.id=r.reviewer_id
-      WHERE r.story_id=? ORDER BY r.created DESC`).all(s.id)
-  }));
+      WHERE r.story_id=? ORDER BY r.created DESC`).all(s.id);
+    const reviews = raw.map((r, i) => ({
+      id: r.id,
+      good: r.good, improve: r.improve, overall: r.overall, rating: r.rating, created: r.created,
+      reveal_status: r.reveal_status,
+      // El nombre solo se muestra si el lector aceptó descubrirse.
+      alias: `Lector secreto #${raw.length - i}`,
+      reviewer_name: r.reveal_status === 'accepted' ? r.reviewer_name : null
+    }));
+    const rated = reviews.filter(r => r.rating > 0);
+    const avg = rated.length ? (rated.reduce((a, r) => a + r.rating, 0) / rated.length) : null;
+    return { ...s, reviews, avg_rating: avg, rating_count: rated.length };
+  });
   res.json(out);
+});
+
+// --- El escritor pide descubrir a un lector secreto ---
+app.post('/api/reveal/request', auth, (req, res) => {
+  const { review_id } = req.body;
+  const r = db.prepare('SELECT r.*, s.author_id FROM reviews r JOIN stories s ON s.id=r.story_id WHERE r.id=?').get(review_id);
+  if (!r) return res.status(404).json({ error: 'Devolución no encontrada' });
+  if (r.author_id !== req.session.uid) return res.status(403).json({ error: 'No es tu cuento' });
+  if (r.reveal_status === 'accepted') return res.status(400).json({ error: 'Ya se descubrió' });
+  db.prepare("UPDATE reviews SET reveal_status='requested' WHERE id=?").run(review_id);
+  res.json({ ok: true });
+});
+
+// --- Pedidos de descubrimiento que me llegaron como lector ---
+app.get('/api/reveal/pending', auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.id, s.title, u.name AS author_name
+    FROM reviews r JOIN stories s ON s.id=r.story_id JOIN users u ON u.id=s.author_id
+    WHERE r.reviewer_id=? AND r.reveal_status='requested'
+    ORDER BY r.created DESC`).all(req.session.uid);
+  res.json(rows);
+});
+
+// --- El lector acepta o rechaza descubrirse ---
+app.post('/api/reveal/respond', auth, (req, res) => {
+  const { review_id, accept } = req.body;
+  const r = db.prepare('SELECT * FROM reviews WHERE id=?').get(review_id);
+  if (!r) return res.status(404).json({ error: 'Devolución no encontrada' });
+  if (r.reviewer_id !== req.session.uid) return res.status(403).json({ error: 'No es tu devolución' });
+  db.prepare('UPDATE reviews SET reveal_status=? WHERE id=?').run(accept ? 'accepted' : 'declined', review_id);
+  res.json({ ok: true });
 });
 
 const PORT = process.env.PORT || 3000;
