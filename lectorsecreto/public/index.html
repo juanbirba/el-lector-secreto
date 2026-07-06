@@ -150,6 +150,32 @@
   .feat-read{margin-top:12px;}
   .feat-genre{display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.18);color:#f3e9dc;padding:2px 9px;border-radius:3px;margin-bottom:14px;align-self:flex-start;}
   @media(max-width:620px){ .featured{grid-template-columns:1fr;} }
+
+  /* escritores - comunidad */
+  .writers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
+  .wcard{background:var(--paper);color:var(--ink);border-radius:6px;padding:18px;box-shadow:0 5px 16px rgba(0,0,0,.28);display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .wavatar{width:74px;height:74px;border-radius:50%;object-fit:cover;background:var(--wine);color:#f3e9dc;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:28px;font-weight:700;margin-bottom:11px;border:2px solid var(--gold);}
+  .wname{font-family:var(--serif);font-size:18px;font-weight:700;margin-bottom:3px;}
+  .wrole{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;background:#e0d2b6;color:#5a4f3a;padding:3px 10px;border-radius:999px;margin-bottom:9px;}
+  .wbio{font-size:13px;color:#4f4838;line-height:1.5;margin-bottom:10px;}
+  .wstats{font-size:11.5px;color:#8a7f6c;border-top:1px solid #d9caae;padding-top:8px;width:100%;}
+  .wstats b{color:var(--wine);}
+
+  /* avatar uploader en perfil */
+  .avatar-edit{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .avatar-prev{width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--wine);color:#f3e9dc;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:24px;font-weight:700;border:2px solid #c4b593;flex-shrink:0;}
+
+  /* admin */
+  .adm-stats{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .adm-stat{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:14px 18px;flex:1;min-width:120px;}
+  .adm-stat .n{font-family:var(--serif);font-size:26px;color:var(--gold);font-weight:700;}
+  .adm-stat .l{font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;}
+  .adm-sec{font-family:var(--serif);font-size:17px;color:var(--paper);margin:18px 0 10px;}
+  .adm-table{width:100%;border-collapse:collapse;background:var(--paper);color:var(--ink);border-radius:6px;overflow:hidden;font-size:12.5px;}
+  .adm-table th{background:var(--wine);color:#f3e9dc;text-align:left;padding:8px 10px;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;}
+  .adm-table td{padding:8px 10px;border-top:1px solid #e0d2b6;}
+  .adm-table tr:nth-child(even) td{background:#ece2cf;}
+  .adm-wrap{overflow-x:auto;margin-bottom:8px;}
 </style>
 </head>
 <body>
@@ -262,9 +288,11 @@ function renderApp(){
 
   const tabs=$(`<div class="tabs">
     <button class="tab ${TAB==='sala'?'on':''}" data-t="sala">Sala de lectura</button>
+    <button class="tab ${TAB==='escritores'?'on':''}" data-t="escritores">Escritores</button>
     <button class="tab ${TAB==='pub'?'on':''}" data-t="pub">Publicar</button>
     <button class="tab ${TAB==='mios'?'on':''}" data-t="mios">Mis cuentos</button>
     <button class="tab ${TAB==='perfil'?'on':''}" data-t="perfil">Perfil</button>
+    ${ME.is_admin?`<button class="tab ${TAB==='admin'?'on':''}" data-t="admin">Admin</button>`:''}
   </div>`);
   app.appendChild(tabs);
   tabs.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;renderApp();});
@@ -273,9 +301,78 @@ function renderApp(){
 
   const body=$(`<div id="body"></div>`); app.appendChild(body);
   if(TAB==='sala') renderSala(body);
+  else if(TAB==='escritores') renderEscritores(body);
   else if(TAB==='pub') renderPub(body);
   else if(TAB==='mios') renderMios(body);
+  else if(TAB==='admin' && ME.is_admin) renderAdmin(body);
   else renderPerfil(body);
+}
+
+// ---------- ESCRITORES (comunidad, visible por todos) ----------
+async function renderEscritores(el){
+  el.innerHTML='';
+  el.appendChild($(`<p class="hint">La comunidad de El lector secreto. Cada uno de nosotros escribe, lee y ayuda a que las obras de los demás crezcan.</p>`));
+  let writers;
+  try{writers=await api('/api/writers');}catch(e){toast(e.message);return;}
+  if(!writers.length){el.appendChild($(`<div class="empty">Todavía no hay escritores en la comunidad. ¡Sé el primero completando tu perfil!</div>`));return;}
+  const grid=$(`<div class="writers-grid"></div>`);
+  writers.forEach(w=>{
+    const initial=(w.name||'?').trim().charAt(0).toUpperCase();
+    const av = w.avatar
+      ? `<img class="wavatar" src="${w.avatar}" alt="${esc(w.name)}">`
+      : `<div class="wavatar">${initial}</div>`;
+    const card=$(`<div class="wcard">
+      ${av}
+      <div class="wname">${esc(w.name)}</div>
+      ${w.role?`<div class="wrole">${esc(w.role)}</div>`:''}
+      ${w.bio?`<div class="wbio">${esc(w.bio)}</div>`:'<div class="wbio" style="color:#a89c86;font-style:italic">Todavía no escribió su presentación.</div>'}
+      <div class="wstats"><b>${w.stories_count}</b> cuento${w.stories_count!==1?'s':''} · <b>${w.reviews_count}</b> devolución${w.reviews_count!==1?'es':''}</div>
+    </div>`);
+    grid.appendChild(card);
+  });
+  el.appendChild(grid);
+}
+
+// ---------- ADMIN (solo juanbirba@gmail.com) ----------
+async function renderAdmin(el){
+  el.innerHTML='';
+  let data;
+  try{data=await api('/api/admin/overview');}catch(e){el.appendChild($(`<div class="empty">${esc(e.message)}</div>`));return;}
+  el.appendChild($(`<div class="adm-stats">
+    <div class="adm-stat"><div class="n">${data.stats.total_users}</div><div class="l">Usuarios</div></div>
+    <div class="adm-stat"><div class="n">${data.stats.total_stories}</div><div class="l">Cuentos</div></div>
+    <div class="adm-stat"><div class="n">${data.stats.total_reviews}</div><div class="l">Devoluciones</div></div>
+  </div>`));
+
+  el.appendChild($(`<div class="adm-sec">Usuarios</div>`));
+  const uwrap=$(`<div class="adm-wrap"></div>`);
+  const ut=$(`<table class="adm-table"><thead><tr>
+    <th>ID</th><th>Nombre</th><th>Email</th><th>Perfil</th><th>Créditos</th><th>Cuentos</th><th>Devol.</th>
+  </tr></thead><tbody></tbody></table>`);
+  const utb=ut.querySelector('tbody');
+  data.users.forEach(u=>{
+    utb.appendChild($(`<tr>
+      <td>${u.id}</td><td>${esc(u.name)}</td><td>${esc(u.email)}</td>
+      <td>${esc(u.role||'—')}</td><td>${u.credits}</td><td>${u.stories_count}</td><td>${u.reviews_count}</td>
+    </tr>`));
+  });
+  uwrap.appendChild(ut); el.appendChild(uwrap);
+
+  el.appendChild($(`<div class="adm-sec">Cuentos</div>`));
+  const swrap=$(`<div class="adm-wrap"></div>`);
+  const st=$(`<table class="adm-table"><thead><tr>
+    <th>ID</th><th>Título</th><th>Autor</th><th>Género</th><th>Extensión</th><th>Devol.</th><th>Prom.</th><th>Fecha</th>
+  </tr></thead><tbody></tbody></table>`);
+  const stb=st.querySelector('tbody');
+  data.stories.forEach(s=>{
+    const avg = s.avg_rating!=null ? (Math.round(s.avg_rating*10)/10).toFixed(1)+'★' : '—';
+    stb.appendChild($(`<tr>
+      <td>${s.id}</td><td>${esc(s.title)}</td><td>${esc(s.author)}</td>
+      <td>${esc(s.genre||'—')}</td><td>${s.length==='corto'?'Corto':'Largo'}</td>
+      <td>${s.reviews_count}</td><td>${avg}</td><td>${new Date(s.created).toLocaleDateString()}</td>
+    </tr>`));
+  });
+  swrap.appendChild(st); el.appendChild(swrap);
 }
 
 // ---------- SALA ----------
@@ -570,6 +667,41 @@ function renderPerfil(el){
   const ci=card.querySelector('.ci');
   ci.appendChild($(`<div class="ttl">Tu perfil</div>`));
   ci.appendChild($(`<div class="meta">${esc(ME.email)}</div>`));
+
+  // Foto de perfil
+  let avatarData = ME.avatar || '';
+  const initial=(ME.name||'?').trim().charAt(0).toUpperCase();
+  const prev = avatarData
+    ? $(`<img class="avatar-prev" src="${avatarData}" alt="foto">`)
+    : $(`<div class="avatar-prev">${initial}</div>`);
+  const fileInput=$(`<input type="file" accept="image/*" style="display:none">`);
+  const pickBtn=$(`<button class="btn b-ghost-d sm" type="button">Subir foto</button>`);
+  pickBtn.onclick=()=>fileInput.click();
+  fileInput.onchange=()=>{
+    const f=fileInput.files[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      const img=new Image();
+      img.onload=()=>{
+        // Redimensionamos a 240px máx para que la imagen no pese mucho
+        const max=240; let w=img.width,h=img.height;
+        if(w>h){ if(w>max){h=h*max/w;w=max;} } else { if(h>max){w=w*max/h;h=max;} }
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        avatarData=cv.toDataURL('image/jpeg',0.82);
+        const np=$(`<img class="avatar-prev" src="${avatarData}" alt="foto">`);
+        wrapAv.replaceChild(np, wrapAv.firstChild);
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  };
+  const wrapAv=$(`<div class="avatar-edit"></div>`);
+  wrapAv.appendChild(prev);
+  const avBtns=$(`<div></div>`); avBtns.appendChild(pickBtn); avBtns.appendChild(fileInput);
+  wrapAv.appendChild(avBtns);
+  ci.appendChild(wrapAv);
+
   const roleF=$(`<select>
     <option value="">— Elegí una opción —</option>
     <option>Lector/a apasionado/a</option>
@@ -587,7 +719,7 @@ function renderPerfil(el){
   card.appendChild($(`<div></div>`));
   el.appendChild(card);
   btn.onclick=async()=>{
-    try{ME=await api('/api/profile',{role:roleF.value,bio:bioF.value});toast('Perfil guardado.');}
+    try{ME=await api('/api/profile',{role:roleF.value,bio:bioF.value,avatar:avatarData});toast('Perfil guardado.');}
     catch(e){toast(e.message);}
   };
 }
