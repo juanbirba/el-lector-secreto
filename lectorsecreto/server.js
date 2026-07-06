@@ -13,7 +13,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE, pass TEXT, name TEXT,
-    role TEXT DEFAULT '', bio TEXT DEFAULT '',
+    role TEXT DEFAULT '', bio TEXT DEFAULT '', avatar TEXT DEFAULT '',
     credits INTEGER DEFAULT 4
   );
   CREATE TABLE IF NOT EXISTS stories(
@@ -32,6 +32,7 @@ db.exec(`
 for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
   try { db.exec(`ALTER TABLE reviews ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
+try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (e) { /* ya existe */ }
 
 // Semilla: un cuento de ejemplo para que el "Texto de la semana" no arranque vacío.
 // Solo corre si no hay ningún cuento todavía.
@@ -65,8 +66,18 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({ secret: 'lector-secreto-dev', resave: false, saveUninitialized: false }));
 
+const ADMIN_EMAIL = 'juanbirba@gmail.com';
 const auth = (req, res, next) => req.session.uid ? next() : res.status(401).json({ error: 'No autenticado' });
-const me = (req) => db.prepare('SELECT id,email,name,role,bio,credits FROM users WHERE id=?').get(req.session.uid);
+const me = (req) => {
+  const u = db.prepare('SELECT id,email,name,role,bio,avatar,credits FROM users WHERE id=?').get(req.session.uid);
+  if (u) u.is_admin = (u.email === ADMIN_EMAIL);
+  return u;
+};
+const adminOnly = (req, res, next) => {
+  const u = db.prepare('SELECT email FROM users WHERE id=?').get(req.session.uid);
+  if (!u || u.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Solo el administrador puede ver esto' });
+  next();
+};
 
 // --- Auth ---
 app.post('/api/register', (req, res) => {
@@ -94,9 +105,52 @@ app.post('/api/logout', (req, res) => { req.session.destroy(() => res.json({ ok:
 app.get('/api/me', auth, (req, res) => res.json(me(req)));
 
 app.post('/api/profile', auth, (req, res) => {
-  const { role, bio } = req.body;
-  db.prepare('UPDATE users SET role=?, bio=? WHERE id=?').run(role || '', bio || '', req.session.uid);
+  const { role, bio, avatar } = req.body;
+  // avatar es un data URL (imagen). Limitamos tamaño para no llenar la base.
+  let av = typeof avatar === 'string' ? avatar : '';
+  if (av && av.length > 700000) return res.status(400).json({ error: 'La imagen es muy pesada. Probá con una más chica.' });
+  if (av && !/^data:image\//.test(av)) av = '';
+  if (avatar === undefined) {
+    db.prepare('UPDATE users SET role=?, bio=? WHERE id=?').run(role || '', bio || '', req.session.uid);
+  } else {
+    db.prepare('UPDATE users SET role=?, bio=?, avatar=? WHERE id=?').run(role || '', bio || '', av, req.session.uid);
+  }
   res.json(me(req));
+});
+
+// --- Escritores: comunidad visible para todos ---
+app.get('/api/writers', auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT u.id, u.name, u.role, u.bio, u.avatar,
+           (SELECT COUNT(*) FROM stories s WHERE s.author_id=u.id) AS stories_count,
+           (SELECT COUNT(*) FROM reviews r WHERE r.reviewer_id=u.id) AS reviews_count
+    FROM users u
+    WHERE u.email NOT LIKE '%@ellectorsecreto.app'
+    ORDER BY (stories_count + reviews_count) DESC, u.name ASC
+  `).all();
+  res.json(rows);
+});
+
+// --- Panel de admin (solo juanbirba@gmail.com) ---
+app.get('/api/admin/overview', auth, adminOnly, (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.name, u.email, u.role, u.credits,
+           (SELECT COUNT(*) FROM stories s WHERE s.author_id=u.id) AS stories_count,
+           (SELECT COUNT(*) FROM reviews r WHERE r.reviewer_id=u.id) AS reviews_count
+    FROM users u ORDER BY u.id ASC
+  `).all();
+  const stories = db.prepare(`
+    SELECT s.id, s.title, s.genre, s.length, s.created, u.name AS author,
+           (SELECT COUNT(*) FROM reviews r WHERE r.story_id=s.id) AS reviews_count,
+           (SELECT AVG(rating) FROM reviews r WHERE r.story_id=s.id AND r.rating>0) AS avg_rating
+    FROM stories s JOIN users u ON u.id=s.author_id ORDER BY s.created DESC
+  `).all();
+  const stats = {
+    total_users: users.length,
+    total_stories: stories.length,
+    total_reviews: db.prepare('SELECT COUNT(*) AS c FROM reviews').get().c
+  };
+  res.json({ stats, users, stories });
 });
 
 // --- Créditos según extensión ---
