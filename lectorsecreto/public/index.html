@@ -4,12 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>El lector secreto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#1a1614; --bg2:#241d1a; --paper:#f2ead9; --ink:#241d16;
     --wine:#6f2436; --wine2:#8a3348; --gold:#c39b52; --dim:#9c8f82; --line:#3b302b;
     --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
-    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --sans:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--paper);font-family:var(--sans);line-height:1.5;}
@@ -117,6 +120,20 @@
   .notice .pend{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap;}
   .notice .pend:first-of-type{border-top:none;}
   .notice .pend .t{font-size:13.5px;color:var(--paper);}
+
+  /* como funciona / ayuda */
+  .help-btn{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:999px;width:26px;height:26px;font-size:14px;cursor:pointer;line-height:1;margin-left:8px;}
+  .help-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .how h2{margin-bottom:14px;}
+  .how-step{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;}
+  .how-num{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--wine);color:#f4ece2;font-family:var(--serif);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;}
+  .how-step .txt{font-size:13.8px;color:#3f3a2e;}
+  .how-step .txt b{color:var(--wine);}
+  .how-table{background:#e7dabf;border-radius:5px;padding:12px 14px;font-size:13px;color:#3f3a2e;margin:4px 0 14px;}
+  .how-table div{padding:3px 0;}
+  .charcount{font-size:12px;color:#6a6152;margin-top:5px;}
+  .charcount b{color:var(--wine);}
+  .selftext{background:#fbf6ec;border:1px solid #c9bb9c;border-radius:5px;padding:12px 14px;font-size:14px;white-space:pre-wrap;font-family:var(--serif);line-height:1.6;color:var(--ink);max-height:220px;overflow-y:auto;margin-top:10px;}
 </style>
 </head>
 <body>
@@ -147,6 +164,27 @@ async function api(url, body){
   return d;
 }
 
+function showHowItWorks(welcome){
+  const ov=$(`<div class="ov"></div>`);
+  const m=$(`<div class="modal how">
+    <h2>${welcome?'¡Bienvenido/a a El lector secreto!':'Cómo funciona'}</h2>
+    <div class="how-step"><div class="how-num">1</div><div class="txt">Somos una comunidad de escritores que se leen entre sí. Acá <b>das para recibir</b>: leés cuentos de otros y a cambio ganás créditos para que lean el tuyo.</div></div>
+    <div class="how-step"><div class="how-num">2</div><div class="txt">Cada vez que leés un cuento y dejás una <b>devolución completa</b> (qué funciona, qué mejorar, impresión general y una puntuación con estrellas), ganás créditos:</div></div>
+    <div class="how-table">
+      <div>📖 Leés un cuento <b>corto</b> (hasta 5 carillas) → ganás <b>2 créditos</b></div>
+      <div>📖 Leés uno <b>largo</b> (5–10 carillas) → ganás <b>4 créditos</b></div>
+      <div>✍️ Publicás uno <b>corto</b> → cuesta <b>1 crédito por lector</b></div>
+      <div>✍️ Publicás uno <b>largo</b> → cuesta <b>2 créditos por lector</b></div>
+    </div>
+    <div class="how-step"><div class="how-num">3</div><div class="txt">Las devoluciones son <b>anónimas</b> (llegan de un "Lector secreto") para que la crítica sea honesta. Si una te gustó, podés <b>pedir descubrir</b> quién la escribió, y si esa persona acepta, se revela y pueden conectar.</div></div>
+    <div class="how-step"><div class="how-num">4</div><div class="txt">Antes de leer una obra ajena aceptás un <b>compromiso de confidencialidad</b>: no se copian ni se roban las obras. Es la regla de oro de la comunidad.</div></div>
+    <div class="mact"><button class="btn b-wine" id="ok">${welcome?'Empezar':'Entendido'}</button></div>
+  </div>`);
+  ov.appendChild(m); document.body.appendChild(ov);
+  m.querySelector('#ok').onclick=()=>ov.remove();
+  ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
+}
+
 // ---------- AUTH ----------
 function renderAuth(mode='login'){
   const app=document.getElementById('app'); app.innerHTML='';
@@ -174,9 +212,11 @@ function renderAuth(mode='login'){
   btn.onclick=async()=>{
     err.style.display='none';
     try{
+      let isNew=false;
       if(mode==='login') ME=await api('/api/login',{email:emailF.value,pass:passF.value});
-      else ME=await api('/api/register',{name:nameF.value,email:emailF.value,pass:passF.value});
+      else { ME=await api('/api/register',{name:nameF.value,email:emailF.value,pass:passF.value}); isNew=true; }
       renderApp();
+      if(isNew) showHowItWorks(true);
     }catch(e){err.textContent=e.message;err.style.display='block';}
   };
   passF.onkeydown=(e)=>{if(e.key==='Enter')btn.click();};
@@ -199,7 +239,7 @@ function wrapField(label, input){
 function renderApp(){
   const app=document.getElementById('app'); app.innerHTML='';
   app.appendChild($(`<div class="top">
-    <div class="logo">${logoSVG()}<div><h1>El lector secreto</h1><small>Hola, ${ME.name}</small></div></div>
+    <div class="logo">${logoSVG()}<div style="display:flex;align-items:center"><div><h1>El lector secreto</h1><small>Hola, ${ME.name}</small></div><button class="help-btn" id="help" title="Cómo funciona">?</button></div></div>
     <div class="pill"><span class="n">${ME.credits}</span><span class="l">créditos</span>
       <a class="out" id="logout">Salir</a></div>
   </div>`));
@@ -213,6 +253,7 @@ function renderApp(){
   app.appendChild(tabs);
   tabs.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;renderApp();});
   document.getElementById('logout').onclick=async()=>{await api('/api/logout',{});ME=null;renderAuth();};
+  document.getElementById('help').onclick=()=>showHowItWorks(false);
 
   const body=$(`<div id="body"></div>`); app.appendChild(body);
   if(TAB==='sala') renderSala(body);
@@ -362,6 +403,7 @@ function renderPub(el){
   ci.appendChild(cost);
   ci.appendChild($(`<div style="height:12px"></div>`));
   ci.appendChild(wrapField('Texto', bodyF));
+  const charc=$(`<div class="charcount"></div>`); ci.appendChild(charc);
   const err=$(`<div class="err" style="display:none"></div>`); ci.appendChild(err);
   const btn=$(`<button class="btn b-gold" style="margin-top:6px">Publicar cuento</button>`);
   ci.appendChild(btn);
@@ -373,7 +415,19 @@ function renderPub(el){
     const n=Math.max(1,Math.min(10,parseInt(readersF.value)||1));
     cost.textContent=`Costo total: ${per*n} créditos (${per} × ${n} lectores). Tenés ${ME.credits}.`;
   };
-  lenF.onchange=updateCost; readersF.oninput=updateCost; updateCost();
+  const updateChars=()=>{
+    const words=bodyF.value.trim().split(/\s+/).filter(Boolean).length;
+    const pages=words/275; // ~275 palabras por carilla
+    if(!words){ charc.textContent=''; return; }
+    let sug='';
+    if(pages<=5) sug=`Entra como cuento <b>corto</b> (hasta 5 carillas).`;
+    else if(pages<=10) sug=`Entra como cuento <b>largo</b> (5–10 carillas).`;
+    else sug=`⚠️ Supera las 10 carillas — quizás convenga recortarlo o dividirlo.`;
+    charc.innerHTML=`${words} palabras ≈ <b>${pages.toFixed(1)} carillas</b>. ${sug}`;
+  };
+  lenF.onchange=updateCost; readersF.oninput=updateCost;
+  bodyF.oninput=updateChars;
+  updateCost(); updateChars();
 
   btn.onclick=async()=>{
     err.style.display='none';
@@ -399,6 +453,12 @@ async function renderMios(el){
       <div class="meta"><span>${s.reviews.length} devolución${s.reviews.length!==1?'es':''} recibida${s.reviews.length!==1?'s':''}</span>${avg}</div>
     </div></div>`);
     const ci=c.querySelector('.ci');
+    const seeRow=$(`<div class="row"></div>`);
+    const seeBtn=$(`<button class="btn b-ghost-d sm">Releer mi texto</button>`);
+    let open=false;
+    const txtBox=$(`<div class="selftext" style="display:none">${esc(s.body)}</div>`);
+    seeBtn.onclick=()=>{ open=!open; txtBox.style.display=open?'block':'none'; seeBtn.textContent=open?'Ocultar texto':'Releer mi texto'; };
+    seeRow.appendChild(seeBtn); ci.appendChild(seeRow); ci.appendChild(txtBox);
     if(s.reviews.length){
       const box=$(`<div style="margin-top:10px"></div>`);
       s.reviews.forEach(r=>{
