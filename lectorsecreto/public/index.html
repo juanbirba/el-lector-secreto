@@ -149,6 +149,10 @@
   .feat-fade{position:absolute;left:0;right:0;bottom:52px;height:60px;background:linear-gradient(transparent,var(--paper));pointer-events:none;}
   .feat-read{margin-top:12px;}
   .feat-genre{display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.18);color:#f3e9dc;padding:2px 9px;border-radius:3px;margin-bottom:14px;align-self:flex-start;}
+  .feat-like{margin-top:14px;}
+  .likebtn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#e9d9c4;border-radius:999px;padding:5px 13px;cursor:pointer;font-size:13px;font-family:var(--sans);transition:.12s;}
+  .likebtn:hover{background:rgba(255,255,255,.2);}
+  .likebtn.on{background:var(--gold);border-color:var(--gold);color:#3a2a12;font-weight:600;}
   @media(max-width:620px){ .featured{grid-template-columns:1fr;} }
 
   /* escritores - comunidad */
@@ -176,6 +180,7 @@
   .adm-table td{padding:8px 10px;border-top:1px solid #e0d2b6;}
   .adm-table tr:nth-child(even) td{background:#ece2cf;}
   .adm-wrap{overflow-x:auto;margin-bottom:8px;}
+  .regstamp{font-size:11.5px;color:#8a7f6c;margin-top:8px;font-style:italic;}
 </style>
 </head>
 <body>
@@ -210,10 +215,10 @@ function showHowItWorks(welcome){
   const ov=$(`<div class="ov"></div>`);
   const m=$(`<div class="modal how">
     <h2>${welcome?'¡Bienvenido/a a El lector secreto!':'Cómo funciona'}</h2>
-    <div class="how-step"><div class="how-num">1</div><div class="txt">Somos una comunidad de escritores que se leen entre sí. Acá <b>das para recibir</b>: leés cuentos de otros y a cambio ganás créditos para que lean el tuyo.</div></div>
-    <div class="how-step"><div class="how-num">2</div><div class="txt">Cada vez que leés un cuento y dejás una <b>devolución completa</b> (qué funciona, qué mejorar, impresión general y una puntuación con estrellas), ganás créditos:</div></div>
+    <div class="how-step"><div class="how-num">1</div><div class="txt">Somos una comunidad de escritores que se leen entre sí. Acá <b>das para recibir</b>: leés textos de otros y a cambio ganás créditos para que lean el tuyo.</div></div>
+    <div class="how-step"><div class="how-num">2</div><div class="txt">Cada vez que leés un texto y dejás una <b>devolución completa</b> (qué funciona, qué mejorar, impresión general y una puntuación con estrellas), ganás créditos:</div></div>
     <div class="how-table">
-      <div>📖 Leés un cuento <b>corto</b> (hasta 5 carillas) → ganás <b>2 créditos</b></div>
+      <div>📖 Leés un texto <b>corto</b> (hasta 5 carillas) → ganás <b>2 créditos</b></div>
       <div>📖 Leés uno <b>largo</b> (5–10 carillas) → ganás <b>4 créditos</b></div>
       <div>✍️ Publicás uno <b>corto</b> → cuesta <b>1 crédito por lector</b></div>
       <div>✍️ Publicás uno <b>largo</b> → cuesta <b>2 créditos por lector</b></div>
@@ -290,7 +295,7 @@ function renderApp(){
     <button class="tab ${TAB==='sala'?'on':''}" data-t="sala">Sala de lectura</button>
     <button class="tab ${TAB==='escritores'?'on':''}" data-t="escritores">Escritores</button>
     <button class="tab ${TAB==='pub'?'on':''}" data-t="pub">Publicar</button>
-    <button class="tab ${TAB==='mios'?'on':''}" data-t="mios">Mis cuentos</button>
+    <button class="tab ${TAB==='mios'?'on':''}" data-t="mios">Mis textos</button>
     <button class="tab ${TAB==='perfil'?'on':''}" data-t="perfil">Perfil</button>
     ${ME.is_admin?`<button class="tab ${TAB==='admin'?'on':''}" data-t="admin">Admin</button>`:''}
   </div>`);
@@ -326,7 +331,7 @@ async function renderEscritores(el){
       <div class="wname">${esc(w.name)}</div>
       ${w.role?`<div class="wrole">${esc(w.role)}</div>`:''}
       ${w.bio?`<div class="wbio">${esc(w.bio)}</div>`:'<div class="wbio" style="color:#a89c86;font-style:italic">Todavía no escribió su presentación.</div>'}
-      <div class="wstats"><b>${w.stories_count}</b> cuento${w.stories_count!==1?'s':''} · <b>${w.reviews_count}</b> devolución${w.reviews_count!==1?'es':''}</div>
+      <div class="wstats"><b>${w.stories_count}</b> texto${w.stories_count!==1?'s':''} · <b>${w.reviews_count}</b> devolución${w.reviews_count!==1?'es':''}</div>
     </div>`);
     grid.appendChild(card);
   });
@@ -340,14 +345,14 @@ async function renderAdmin(el){
   try{data=await api('/api/admin/overview');}catch(e){el.appendChild($(`<div class="empty">${esc(e.message)}</div>`));return;}
   el.appendChild($(`<div class="adm-stats">
     <div class="adm-stat"><div class="n">${data.stats.total_users}</div><div class="l">Usuarios</div></div>
-    <div class="adm-stat"><div class="n">${data.stats.total_stories}</div><div class="l">Cuentos</div></div>
+    <div class="adm-stat"><div class="n">${data.stats.total_stories}</div><div class="l">Textos</div></div>
     <div class="adm-stat"><div class="n">${data.stats.total_reviews}</div><div class="l">Devoluciones</div></div>
   </div>`));
 
   el.appendChild($(`<div class="adm-sec">Usuarios</div>`));
   const uwrap=$(`<div class="adm-wrap"></div>`);
   const ut=$(`<table class="adm-table"><thead><tr>
-    <th>ID</th><th>Nombre</th><th>Email</th><th>Perfil</th><th>Créditos</th><th>Cuentos</th><th>Devol.</th>
+    <th>ID</th><th>Nombre</th><th>Email</th><th>Perfil</th><th>Créditos</th><th>Textos</th><th>Devol.</th>
   </tr></thead><tbody></tbody></table>`);
   const utb=ut.querySelector('tbody');
   data.users.forEach(u=>{
@@ -358,21 +363,42 @@ async function renderAdmin(el){
   });
   uwrap.appendChild(ut); el.appendChild(uwrap);
 
-  el.appendChild($(`<div class="adm-sec">Cuentos</div>`));
+  el.appendChild($(`<div class="adm-sec">Textos</div>`));
   const swrap=$(`<div class="adm-wrap"></div>`);
   const st=$(`<table class="adm-table"><thead><tr>
-    <th>ID</th><th>Título</th><th>Autor</th><th>Género</th><th>Extensión</th><th>Devol.</th><th>Prom.</th><th>Fecha</th>
+    <th>ID</th><th>Título</th><th>Autor</th><th>Tipo</th><th>Género</th><th>Extensión</th><th>Devol.</th><th>Prom.</th><th>Fecha y hora</th>
   </tr></thead><tbody></tbody></table>`);
   const stb=st.querySelector('tbody');
   data.stories.forEach(s=>{
     const avg = s.avg_rating!=null ? (Math.round(s.avg_rating*10)/10).toFixed(1)+'★' : '—';
     stb.appendChild($(`<tr>
       <td>${s.id}</td><td>${esc(s.title)}</td><td>${esc(s.author)}</td>
-      <td>${esc(s.genre||'—')}</td><td>${s.length==='corto'?'Corto':'Largo'}</td>
-      <td>${s.reviews_count}</td><td>${avg}</td><td>${new Date(s.created).toLocaleDateString()}</td>
+      <td>${esc(s.type||'—')}</td><td>${esc(s.genre||'—')}</td><td>${s.length==='corto'?'Corto':'Largo'}</td>
+      <td>${s.reviews_count}</td><td>${avg}</td><td>${fmtDateTime(s.created)}</td>
     </tr>`));
   });
   swrap.appendChild(st); el.appendChild(swrap);
+
+  // Tabla de devoluciones (visible para admin, con nombre real del lector)
+  el.appendChild($(`<div class="adm-sec">Devoluciones</div>`));
+  const rwrap=$(`<div class="adm-wrap"></div>`);
+  const rt=$(`<table class="adm-table"><thead><tr>
+    <th>Texto</th><th>Autor</th><th>Lector (real)</th><th>★</th><th>Funciona</th><th>Mejorar</th><th>General</th><th>Fecha y hora</th>
+  </tr></thead><tbody></tbody></table>`);
+  const rtb=rt.querySelector('tbody');
+  (data.reviews||[]).forEach(r=>{
+    rtb.appendChild($(`<tr>
+      <td>${esc(r.story_title)}</td><td>${esc(r.author_name)}</td>
+      <td>${esc(r.reviewer_name)}</td><td>${r.rating>0?r.rating:'—'}</td>
+      <td>${esc(r.good)}</td><td>${esc(r.improve)}</td><td>${esc(r.overall)}</td>
+      <td>${fmtDateTime(r.created)}</td>
+    </tr>`));
+  });
+  rwrap.appendChild(rt); el.appendChild(rwrap);
+}
+function fmtDateTime(ts){
+  const d=new Date(ts);
+  return d.toLocaleDateString('es-AR')+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
 }
 
 // ---------- SALA ----------
@@ -397,7 +423,25 @@ async function renderSala(el){
     }
   }catch(e){/* silencioso */}
 
-  // Texto de la semana (el mejor puntuado) - estilo blog
+  // ¿Me eligieron como texto de la semana y tengo que aprobar?
+  try{
+    const p=await api('/api/featured/pending');
+    if(p){
+      const n=$(`<div class="notice"><h3>¡Tu texto fue elegido! 🌟</h3>
+        <div class="pend"><span class="t">Tu texto <b>“${esc(p.title)}”</b> es el mejor puntuado de la semana. ¿Querés que se muestre <b>públicamente</b> a toda la comunidad como Texto de la semana? (Hasta ahora solo lo vieron tus lectores secretos.)</span></div></div>`);
+      const btns=$(`<div class="pend"><span></span></div>`);
+      const box=$(`<span style="display:flex;gap:8px"></span>`);
+      const yes=$(`<button class="btn b-gold sm">Sí, mostrarlo</button>`);
+      const no=$(`<button class="btn b-ghost sm">No por ahora</button>`);
+      yes.onclick=async()=>{ try{ await api('/api/featured/respond',{story_id:p.id,accept:true}); toast('¡Listo! Tu texto es el destacado de la comunidad.'); renderApp(); }catch(e){toast(e.message);} };
+      no.onclick=async()=>{ try{ await api('/api/featured/respond',{story_id:p.id,accept:false}); toast('Entendido, no se mostrará. El puesto pasa al siguiente.'); renderApp(); }catch(e){toast(e.message);} };
+      box.appendChild(yes); box.appendChild(no); btns.querySelector('span').replaceWith(box);
+      n.appendChild(btns);
+      el.appendChild(n);
+    }
+  }catch(e){/* silencioso */}
+
+  // Texto de la semana (aprobado por su autor) - estilo blog
   try{
     const f=await api('/api/featured');
     if(f && f.avg_rating!=null){
@@ -406,11 +450,12 @@ async function renderSala(el){
       const truncated=f.body.length>420;
       const feat=$(`<div class="featured">
         <div class="feat-side">
-          <div class="feat-genre">${esc(f.genre||'Relato')}</div>
+          <div class="feat-genre">${esc(f.type||'Texto')}${f.genre?' · '+esc(f.genre):''}</div>
           <div class="feat-eyebrow">${starMini()} Texto de la semana</div>
           <div class="feat-title">${esc(f.title)}</div>
           <div class="feat-author">por ${esc(f.author)}</div>
           <div class="feat-stars"><span id="fstars"></span><span class="rate-val">${avg.toFixed(1)} / 5</span></div>
+          <div class="feat-like"><button class="likebtn ${f.liked_by_me?'on':''}" id="flike">${heartSVG()} <span id="flikecount">${f.likes}</span></button></div>
         </div>
         <div class="feat-body">
           <div class="excerpt">${esc(excerpt)}${truncated?'…':''}</div>
@@ -420,17 +465,25 @@ async function renderSala(el){
       </div>`);
       feat.querySelector('#fstars').appendChild(readOnlyStars(f.avg_rating));
       feat.querySelector('#freadbtn').onclick=()=>openFeatured(f);
+      const likeBtn=feat.querySelector('#flike');
+      likeBtn.onclick=async()=>{
+        try{
+          const r=await api('/api/like',{story_id:f.id});
+          feat.querySelector('#flikecount').textContent=r.likes;
+          likeBtn.classList.toggle('on', r.liked_by_me);
+        }catch(e){toast(e.message);}
+      };
       el.appendChild(feat);
     }
   }catch(e){/* silencioso */}
 
-  el.appendChild($(`<p class="hint">Leé un cuento y dejá una devolución completa para ganar créditos: cuentos cortos (hasta 5 carillas) dan 2, largos (5–10) dan 4.</p>`));
+  el.appendChild($(`<p class="hint">Leé un texto y dejá una devolución completa para ganar créditos: textos cortos (hasta 5 carillas) dan 2, largos (5–10) dan 4.</p>`));
   let feed;
   try{feed=await api('/api/feed');}catch(e){toast(e.message);return;}
-  if(!feed.length){el.appendChild($(`<div class="empty">No hay cuentos nuevos para leer ahora. Volvé más tarde o invitá a otros escritores.</div>`));return;}
+  if(!feed.length){el.appendChild($(`<div class="empty">No hay textos nuevos para leer ahora. Volvé más tarde o invitá a otros escritores.</div>`));return;}
   feed.forEach(s=>{
     const c=$(`<div class="card"><div class="ci">
-      <span class="tag">${s.genre||'Sin género'}</span><span class="tag">${s.length==='corto'?'Hasta 5 carillas':'5–10 carillas'}</span>
+      <span class="tag">${esc(s.type||'Texto')}</span><span class="tag">${s.genre||'Sin género'}</span><span class="tag">${s.length==='corto'?'Hasta 5 carillas':'5–10 carillas'}</span>
       <div class="ttl">${esc(s.title)}</div>
       <div class="meta"><span>de ${esc(s.author)}</span></div>
       <div class="row"><button class="btn b-wine sm">Leer y dar devolución</button></div>
@@ -527,15 +580,24 @@ function renderPub(el){
   el.innerHTML='';
   const card=$(`<div class="card"><div class="ci dark" style="color:var(--ink)"></div></div>`);
   const ci=card.querySelector('.ci');
-  ci.appendChild($(`<div class="ttl">Publicar un cuento</div>`));
+  ci.appendChild($(`<div class="ttl">Publicar un texto</div>`));
   ci.appendChild($(`<div class="nda"><b>Confidencialidad:</b> cada lector acepta un compromiso de no copiar tu obra antes de leerla. Es un acuerdo simbólico entre la comunidad, no reemplaza el registro legal de tu obra según las leyes de tu país.</div>`));
 
-  const titleF=$(`<input placeholder="Título del cuento">`);
+  const titleF=$(`<input placeholder="Título del texto">`);
+  const typeF=$(`<select>
+    <option>Cuento</option>
+    <option>Relato</option>
+    <option>Reseña</option>
+    <option>Capítulo de novela</option>
+    <option>Guión</option>
+    <option>Otro</option>
+  </select>`);
   const genreF=$(`<input placeholder="Ej: Realismo, fantasía, terror…">`);
   const lenF=$(`<select><option value="corto">Hasta 5 carillas (cuesta 1 crédito por lector)</option><option value="largo">5 a 10 carillas (cuesta 2 créditos por lector)</option></select>`);
   const readersF=$(`<input type="number" min="1" max="10" value="2">`);
-  const bodyF=$(`<textarea rows="9" placeholder="Pegá acá el texto de tu cuento"></textarea>`);
+  const bodyF=$(`<textarea rows="9" placeholder="Pegá acá tu texto"></textarea>`);
   ci.appendChild(wrapField('Título', titleF));
+  ci.appendChild(wrapField('Tipo de texto', typeF));
   ci.appendChild(wrapField('Género', genreF));
   ci.appendChild(wrapField('Extensión', lenF));
   ci.appendChild(wrapField('¿Cuántos lectores secretos querés?', readersF));
@@ -545,7 +607,7 @@ function renderPub(el){
   ci.appendChild(wrapField('Texto', bodyF));
   const charc=$(`<div class="charcount"></div>`); ci.appendChild(charc);
   const err=$(`<div class="err" style="display:none"></div>`); ci.appendChild(err);
-  const btn=$(`<button class="btn b-gold" style="margin-top:6px">Publicar cuento</button>`);
+  const btn=$(`<button class="btn b-gold" style="margin-top:6px">Publicar texto</button>`);
   ci.appendChild(btn);
   card.appendChild($(`<div></div>`));
   el.appendChild(card);
@@ -560,8 +622,8 @@ function renderPub(el){
     const pages=words/275; // ~275 palabras por carilla
     if(!words){ charc.textContent=''; return; }
     let sug='';
-    if(pages<=5) sug=`Entra como cuento <b>corto</b> (hasta 5 carillas).`;
-    else if(pages<=10) sug=`Entra como cuento <b>largo</b> (5–10 carillas).`;
+    if(pages<=5) sug=`Entra como texto <b>corto</b> (hasta 5 carillas).`;
+    else if(pages<=10) sug=`Entra como texto <b>largo</b> (5–10 carillas).`;
     else sug=`⚠️ Supera las 10 carillas — quizás convenga recortarlo o dividirlo.`;
     charc.innerHTML=`${words} palabras ≈ <b>${pages.toFixed(1)} carillas</b>. ${sug}`;
   };
@@ -572,8 +634,8 @@ function renderPub(el){
   btn.onclick=async()=>{
     err.style.display='none';
     try{
-      const r=await api('/api/stories',{title:titleF.value,genre:genreF.value,length:lenF.value,readers:readersF.value,body:bodyF.value});
-      ME.credits-=r.spent; toast(`Cuento publicado. Se reservaron ${r.spent} créditos.`); TAB='mios'; renderApp();
+      const r=await api('/api/stories',{title:titleF.value,type:typeF.value,genre:genreF.value,length:lenF.value,readers:readersF.value,body:bodyF.value});
+      ME.credits-=r.spent; toast(`Texto publicado. Se reservaron ${r.spent} créditos.`); TAB='mios'; renderApp();
     }catch(e){err.textContent=e.message;err.style.display='block';}
   };
 }
@@ -583,14 +645,15 @@ async function renderMios(el){
   el.innerHTML='';
   let mine;
   try{mine=await api('/api/mine');}catch(e){toast(e.message);return;}
-  if(!mine.length){el.appendChild($(`<div class="empty">Todavía no publicaste ningún cuento. Andá a “Publicar” para compartir el primero.</div>`));return;}
+  if(!mine.length){el.appendChild($(`<div class="empty">Todavía no publicaste ningún texto. Andá a “Publicar” para compartir el primero.</div>`));return;}
   mine.forEach(s=>{
     const avg = s.avg_rating!=null
       ? `<span class="avg-badge">${'★'} <span class="n">${s.avg_rating.toFixed(1)}</span> / 5 · ${s.rating_count} voto${s.rating_count!==1?'s':''}</span>` : '';
     const c=$(`<div class="card"><div class="ci">
-      <span class="tag">${s.genre||'Sin género'}</span><span class="tag">${s.length==='corto'?'Hasta 5 carillas':'5–10 carillas'}</span>
+      <span class="tag">${esc(s.type||'Texto')}</span><span class="tag">${s.genre||'Sin género'}</span><span class="tag">${s.length==='corto'?'Hasta 5 carillas':'5–10 carillas'}</span>
       <div class="ttl">${esc(s.title)}</div>
       <div class="meta"><span>${s.reviews.length} devolución${s.reviews.length!==1?'es':''} recibida${s.reviews.length!==1?'s':''}</span>${avg}</div>
+      <div class="regstamp">🔒 Registrado en la plataforma el ${fmtDateTime(s.created)}</div>
     </div></div>`);
     const ci=c.querySelector('.ci');
     const seeRow=$(`<div class="row"></div>`);
@@ -645,6 +708,7 @@ async function renderMios(el){
 }
 function eyeMini(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>`; }
 function starMini(){ return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.7 1.4 6.8L12 17.8 5.9 21.2l1.4-6.8L2.2 9.7l6.9-.7z"/></svg>`; }
+function heartSVG(){ return `<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 21s-7.5-4.9-10-9.1C.3 8.6 1.7 5 5 5c2 0 3.3 1.2 4 2.3C9.7 6.2 11 5 13 5c3.3 0 4.7 3.6 3 6.9C19.5 16.1 12 21 12 21z"/></svg>`; }
 
 // Lectura del texto de la semana (solo lectura, sin devolución)
 function openFeatured(f){
