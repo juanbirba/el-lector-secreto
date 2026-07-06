@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El lector secreto</title>
+<style>
+  :root{
+    --bg:#1a1614; --bg2:#241d1a; --paper:#f2ead9; --ink:#241d16;
+    --wine:#6f2436; --wine2:#8a3348; --gold:#c39b52; --dim:#9c8f82; --line:#3b302b;
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--paper);font-family:var(--sans);line-height:1.5;}
+  .wrap{max-width:840px;margin:0 auto;padding:26px 18px 90px;}
+  a{color:var(--gold);cursor:pointer;}
+
+  /* header */
+  .top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;}
+  .logo{display:flex;align-items:center;gap:11px;}
+  .logo svg{flex-shrink:0;}
+  .logo h1{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:.3px;}
+  .logo small{display:block;color:var(--dim);font-size:12px;margin-top:1px;}
+  .pill{display:flex;align-items:center;gap:9px;background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:7px 15px 7px 8px;}
+  .pill .n{font-family:var(--serif);font-size:18px;color:var(--gold);font-weight:700;}
+  .pill .l{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;}
+  .pill .out{font-size:11.5px;color:var(--dim);margin-left:6px;border-left:1px solid var(--line);padding-left:10px;}
+
+  .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:22px;}
+  .tab{font-family:var(--serif);font-size:15px;color:var(--dim);background:none;border:none;border-bottom:2px solid transparent;padding:9px 2px;cursor:pointer;}
+  .tab.on{color:var(--paper);border-bottom-color:var(--wine2);}
+  .tab:hover{color:var(--paper);}
+
+  .card{background:var(--paper);color:var(--ink);border-radius:3px;padding:18px 20px;margin-bottom:15px;box-shadow:0 5px 16px rgba(0,0,0,.3);position:relative;overflow:hidden;}
+  .card::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:4px;background:var(--wine);}
+  .ci{padding-left:8px;}
+  .tag{display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;background:#d9caae;color:#544b3a;padding:2px 8px;border-radius:3px;margin-right:7px;}
+  .ttl{font-family:var(--serif);font-size:19px;font-weight:700;margin:5px 0 3px;}
+  .meta{font-size:12px;color:#6a6152;margin-bottom:9px;}
+  .meta span{margin-right:11px;}
+  .syn{font-size:14px;color:#3f3a2e;white-space:pre-wrap;}
+
+  .btn{font-family:var(--sans);font-size:13.5px;font-weight:600;border:none;border-radius:4px;padding:9px 16px;cursor:pointer;transition:.08s;}
+  .btn:active{transform:scale(.97);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .b-wine{background:var(--wine);color:#f4ece2;} .b-wine:hover{background:var(--wine2);}
+  .b-gold{background:var(--gold);color:#241d16;} .b-gold:hover{filter:brightness(1.08);}
+  .b-ghost{background:transparent;color:var(--paper);border:1px solid var(--line);} .b-ghost:hover{border-color:var(--gold);color:var(--gold);}
+  .b-ghost-d{background:transparent;color:var(--ink);border:1px solid #c4b593;} .b-ghost-d:hover{border-color:var(--wine);color:var(--wine);}
+  .sm{padding:6px 12px;font-size:12.5px;}
+  .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px;}
+
+  .empty{text-align:center;padding:44px 18px;color:var(--dim);border:1px dashed var(--line);border-radius:6px;font-size:14px;}
+  .hint{font-size:12.5px;color:var(--dim);margin-bottom:14px;}
+
+  /* forms */
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6a6152;margin-bottom:5px;}
+  .dark .field label{color:var(--dim);}
+  input,select,textarea{width:100%;padding:10px 11px;border:1px solid #c4b593;border-radius:4px;font-family:var(--sans);font-size:14px;background:#fbf6ec;color:var(--ink);}
+  .dark input,.dark select,.dark textarea{background:var(--bg2);border-color:var(--line);color:var(--paper);}
+  textarea{resize:vertical;}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(10,8,7,.74);display:flex;align-items:flex-start;justify-content:center;padding:38px 15px;overflow-y:auto;z-index:50;}
+  .modal{background:var(--paper);color:var(--ink);border-radius:6px;max-width:600px;width:100%;padding:26px 24px;box-shadow:0 18px 55px rgba(0,0,0,.55);}
+  .modal h2{font-family:var(--serif);font-size:21px;margin-bottom:4px;}
+  .modal .sub{font-size:12.5px;color:#6a6152;margin-bottom:16px;}
+  .mact{display:flex;justify-content:flex-end;gap:9px;margin-top:16px;}
+
+  .nda{background:#e7dabf;border:1px solid #c9bb9c;border-radius:5px;padding:13px 15px;font-size:13px;color:#3f3a2e;margin-bottom:14px;}
+  .nda b{color:var(--wine);}
+  .nda ul{margin:7px 0 0 17px;}
+  .chk{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;margin-top:10px;}
+  .chk input{width:auto;margin-top:3px;}
+
+  .reader{background:#fbf6ec;border:1px solid #c9bb9c;border-radius:5px;padding:14px 16px;max-height:300px;overflow-y:auto;font-size:14.5px;white-space:pre-wrap;margin-bottom:16px;font-family:var(--serif);line-height:1.65;}
+
+  .rv{border-top:1px solid #d9caae;padding-top:11px;margin-top:11px;}
+  .rv:first-child{border-top:none;margin-top:0;padding-top:0;}
+  .rv .who{display:flex;justify-content:space-between;font-size:12px;color:#6a6152;margin-bottom:5px;}
+  .rv .who b{color:var(--ink);}
+  .rv p{font-size:13.5px;margin-bottom:3px;} .rv p b{color:var(--wine);}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--gold);color:var(--paper);padding:10px 18px;border-radius:5px;font-size:13.5px;z-index:60;box-shadow:0 8px 22px rgba(0,0,0,.45);}
+  .err{color:#e08a8a;font-size:13px;margin-top:8px;}
+
+  /* auth screen */
+  .authbox{max-width:400px;margin:8vh auto 0;}
+  .authbox .card::before{display:none;}
+  .switch{text-align:center;font-size:13px;color:var(--dim);margin-top:16px;}
+  .costnote{font-size:12px;color:#6a6152;background:#e7dabf;border-radius:4px;padding:8px 11px;margin-top:6px;}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+
+<script>
+const $ = (h) => { const t=document.createElement('template'); t.innerHTML=h.trim(); return t.content.firstChild; };
+let ME=null, TAB='sala';
+
+function logoSVG(){
+  return `<svg width="38" height="38" viewBox="0 0 38 38">
+    <circle cx="19" cy="19" r="17" fill="#6f2436" stroke="#c39b52" stroke-width="1.4"/>
+    <path d="M11 15 Q19 9 27 15 Q19 21 11 15 Z" fill="#f2ead9"/>
+    <circle cx="19" cy="15" r="2.6" fill="#6f2436"/>
+  </svg>`;
+}
+function toast(msg){
+  const el=$(`<div class="toast">${msg}</div>`);
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),2900);
+}
+async function api(url, body){
+  const opt={headers:{'Content-Type':'application/json'}};
+  if(body){opt.method='POST';opt.body=JSON.stringify(body);}
+  const r=await fetch(url,opt);
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||'Error');
+  return d;
+}
+
+// ---------- AUTH ----------
+function renderAuth(mode='login'){
+  const app=document.getElementById('app'); app.innerHTML='';
+  const box=$(`<div class="authbox"></div>`);
+  box.appendChild($(`<div class="logo" style="justify-content:center;margin-bottom:20px">${logoSVG()}
+    <div><h1>El lector secreto</h1><small>Una comunidad de escritores que se leen entre sí</small></div></div>`));
+
+  const card=$(`<div class="card"><div class="ci"></div></div>`);
+  const ci=card.querySelector('.ci');
+  ci.appendChild($(`<h2 class="ttl">${mode==='login'?'Ingresar':'Crear cuenta'}</h2>`));
+
+  let nameF;
+  if(mode==='register'){
+    nameF=$(`<input placeholder="Tu nombre o seudónimo">`);
+    ci.appendChild(wrapField('Nombre', nameF));
+  }
+  const emailF=$(`<input type="email" placeholder="tu@email.com">`);
+  const passF=$(`<input type="password" placeholder="••••••••">`);
+  ci.appendChild(wrapField('Email', emailF));
+  ci.appendChild(wrapField('Contraseña', passF));
+  const err=$(`<div class="err" style="display:none"></div>`);
+  ci.appendChild(err);
+
+  const btn=$(`<button class="btn b-wine" style="width:100%;margin-top:6px">${mode==='login'?'Ingresar':'Crear cuenta y entrar'}</button>`);
+  btn.onclick=async()=>{
+    err.style.display='none';
+    try{
+      if(mode==='login') ME=await api('/api/login',{email:emailF.value,pass:passF.value});
+      else ME=await api('/api/register',{name:nameF.value,email:emailF.value,pass:passF.value});
+      renderApp();
+    }catch(e){err.textContent=e.message;err.style.display='block';}
+  };
+  passF.onkeydown=(e)=>{if(e.key==='Enter')btn.click();};
+  ci.appendChild(btn);
+  card.appendChild($(`<div></div>`));
+  box.appendChild(card);
+
+  box.appendChild($(`<div class="switch">${mode==='login'
+    ? '¿No tenés cuenta? <a id="sw">Registrate</a>'
+    : '¿Ya tenés cuenta? <a id="sw">Ingresá</a>'}</div>`));
+  app.appendChild(box);
+  document.getElementById('sw').onclick=()=>renderAuth(mode==='login'?'register':'login');
+}
+function wrapField(label, input){
+  const f=$(`<div class="field"><label>${label}</label></div>`);
+  f.appendChild(input); return f;
+}
+
+// ---------- APP SHELL ----------
+function renderApp(){
+  const app=document.getElementById('app'); app.innerHTML='';
+  app.appendChild($(`<div class="top">
+    <div class="logo">${logoSVG()}<div><h1>El lector secreto</h1><small>Hola, ${ME.name}</small></div></div>
+    <div class="pill"><span class="n">${ME.credits}</span><span class="l">créditos</span>
+      <a class="out" id="logout">Salir</a></div>
+  </div>`));
+
+  const tabs=$(`<div class="tabs">
+    <button class="tab ${TAB==='sala'?'on':''}" data-t="sala">Sala de lectura</button>
+    <button class="tab ${TAB==='pub'?'on':''}" data-t="pub">Publicar</button>
+    <button class="tab ${TAB==='mios'?'on':''}" data-t="mios">Mis cuentos</button>
+    <button class="tab ${TAB==='perfil'?'on':''}" data-t="perfil">Perfil</button>
+  </div>`);
+  app.appendChild(tabs);
+  tabs.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;renderApp();});
+  document.getElementById('logout').onclick=async()=>{await api('/api/logout',{});ME=null;renderAuth();};
+
+  const body=$(`<div id="body"></div>`); app.appendChild(body);
+  if(TAB==='sala') renderSala(body);
+  else if(TAB==='pub') renderPub(body);
+  else if(TAB==='mios') renderMios(body);
+  else renderPerfil(body);
+}
+
+// ---------- SALA ----------
+async function renderSala(el){
+  el.innerHTML='';
+  el.appendChild($(`<p class="hint">Leé un cuento y dejá una devolución completa para ganar créditos: cuentos cortos (hasta 5 carillas) dan 2, largos (5–10) dan 4.</p>`));
+  let feed;
+  try{feed=await api('/api/feed');}catch(e){toast(e.message);return;}
+  if(!feed.length){el.appendChild($(`<div class="empty">No hay cuentos nuevos para leer ahora. Volvé más tarde o invitá a otros escritores.</div>`));return;}
+  feed.forEach(s=>{
+    const c=$(`<div class="card"><div class="ci">
+      <span class="tag">${s.genre||'Sin género'}</span><span class="tag">${s.length==='corto'?'Hasta 5 carillas':'5–10 carillas'}</span>
+      <div class="ttl">${esc(s.title)}</div>
+      <div class="meta"><span>de ${esc(s.author)}</span></div>
+      <div class="row"><button class="btn b-wine sm">Leer y dar devolución</button></div>
+    </div></div>`);
+    c.querySelector('button').onclick=()=>openRead(s);
+    el.appendChild(c);
+  });
+}
+
+function openRead(s){
+  // Paso 1: NDA
+  const ov=$(`<div class="ov"></div>`);
+  const m=$(`<div class="modal dark" style="background:var(--paper);color:var(--ink)">
+    <h2>Antes de leer “${esc(s.title)}”</h2>
+    <div class="nda">Este es material inédito de <b>${esc(s.author)}</b>. Al continuar te comprometés a:
+      <ul><li>No copiar, difundir ni publicar este texto.</li>
+      <li>No usar sus ideas, trama o personajes en obras propias.</li>
+      <li>Dar una devolución honesta, específica y respetuosa.</li></ul></div>
+    <label class="chk"><input type="checkbox" id="nda"> Acepto el compromiso de confidencialidad.</label>
+    <div class="mact"><button class="btn b-ghost-d" id="cancel">Cancelar</button>
+      <button class="btn b-wine" id="go" disabled>Continuar a la lectura</button></div>
+  </div>`);
+  ov.appendChild(m); document.body.appendChild(ov);
+  m.querySelector('#nda').onchange=(e)=>m.querySelector('#go').disabled=!e.target.checked;
+  m.querySelector('#cancel').onclick=()=>ov.remove();
+  m.querySelector('#go').onclick=()=>{ov.remove();openReview(s);};
+  ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
+}
+
+function openReview(s){
+  const reward=s.length==='corto'?2:4;
+  const ov=$(`<div class="ov"></div>`);
+  const m=$(`<div class="modal">
+    <h2>${esc(s.title)}</h2>
+    <div class="sub">de ${esc(s.author)} · ${s.length==='corto'?'hasta 5 carillas':'5–10 carillas'}</div>
+    <div class="reader">${esc(s.body)}</div>
+    <div class="field"><label>Qué funciona bien</label><textarea id="good" rows="2" placeholder="Lo que te enganchó, lo mejor logrado"></textarea></div>
+    <div class="field"><label>Qué mejorarías</label><textarea id="improve" rows="2" placeholder="Ritmo, claridad, personajes, lo que flojea"></textarea></div>
+    <div class="field"><label>Impresión general</label><textarea id="overall" rows="2" placeholder="¿Seguirías leyendo? ¿Qué te quedó?"></textarea></div>
+    <div class="mact"><button class="btn b-ghost-d" id="cancel">Cancelar</button>
+      <button class="btn b-wine" id="send">Enviar devolución (+${reward} créditos)</button></div>
+  </div>`);
+  ov.appendChild(m); document.body.appendChild(ov);
+  m.querySelector('#cancel').onclick=()=>ov.remove();
+  m.querySelector('#send').onclick=async()=>{
+    const good=m.querySelector('#good').value, improve=m.querySelector('#improve').value, overall=m.querySelector('#overall').value;
+    try{
+      const r=await api('/api/reviews',{story_id:s.id,good,improve,overall});
+      ME.credits+=r.reward; ov.remove(); toast(`Devolución enviada. +${r.reward} créditos.`); renderApp();
+    }catch(e){toast(e.message);}
+  };
+}
+
+// ---------- PUBLICAR ----------
+function renderPub(el){
+  el.innerHTML='';
+  const card=$(`<div class="card"><div class="ci dark" style="color:var(--ink)"></div></div>`);
+  const ci=card.querySelector('.ci');
+  ci.appendChild($(`<div class="ttl">Publicar un cuento</div>`));
+  ci.appendChild($(`<div class="nda"><b>Confidencialidad:</b> cada lector acepta un compromiso de no copiar tu obra antes de leerla. Es un acuerdo simbólico entre la comunidad, no reemplaza el registro legal de tu obra según las leyes de tu país.</div>`));
+
+  const titleF=$(`<input placeholder="Título del cuento">`);
+  const genreF=$(`<input placeholder="Ej: Realismo, fantasía, terror…">`);
+  const lenF=$(`<select><option value="corto">Hasta 5 carillas (cuesta 1 crédito por lector)</option><option value="largo">5 a 10 carillas (cuesta 2 créditos por lector)</option></select>`);
+  const readersF=$(`<input type="number" min="1" max="10" value="2">`);
+  const bodyF=$(`<textarea rows="9" placeholder="Pegá acá el texto de tu cuento"></textarea>`);
+  ci.appendChild(wrapField('Título', titleF));
+  ci.appendChild(wrapField('Género', genreF));
+  ci.appendChild(wrapField('Extensión', lenF));
+  ci.appendChild(wrapField('¿Cuántos lectores secretos querés?', readersF));
+  const cost=$(`<div class="costnote"></div>`);
+  ci.appendChild(cost);
+  ci.appendChild($(`<div style="height:12px"></div>`));
+  ci.appendChild(wrapField('Texto', bodyF));
+  const err=$(`<div class="err" style="display:none"></div>`); ci.appendChild(err);
+  const btn=$(`<button class="btn b-gold" style="margin-top:6px">Publicar cuento</button>`);
+  ci.appendChild(btn);
+  card.appendChild($(`<div></div>`));
+  el.appendChild(card);
+
+  const updateCost=()=>{
+    const per=lenF.value==='corto'?1:2;
+    const n=Math.max(1,Math.min(10,parseInt(readersF.value)||1));
+    cost.textContent=`Costo total: ${per*n} créditos (${per} × ${n} lectores). Tenés ${ME.credits}.`;
+  };
+  lenF.onchange=updateCost; readersF.oninput=updateCost; updateCost();
+
+  btn.onclick=async()=>{
+    err.style.display='none';
+    try{
+      const r=await api('/api/stories',{title:titleF.value,genre:genreF.value,length:lenF.value,readers:readersF.value,body:bodyF.value});
+      ME.credits-=r.spent; toast(`Cuento publicado. Se reservaron ${r.spent} créditos.`); TAB='mios'; renderApp();
+    }catch(e){err.textContent=e.message;err.style.display='block';}
+  };
+}
+
+// ---------- MIS CUENTOS ----------
+async function renderMios(el){
+  el.innerHTML='';
+  let mine;
+  try{mine=await api('/api/mine');}catch(e){toast(e.message);return;}
+  if(!mine.length){el.appendChild($(`<div class="empty">Todavía no publicaste ningún cuento. Andá a “Publicar” para compartir el primero.</div>`));return;}
+  mine.forEach(s=>{
+    const c=$(`<div class="card"><div class="ci">
+      <span class="tag">${s.genre||'Sin género'}</span><span class="tag">${s.length==='corto'?'Hasta 5 carillas':'5–10 carillas'}</span>
+      <div class="ttl">${esc(s.title)}</div>
+      <div class="meta"><span>${s.reviews.length} devolución${s.reviews.length!==1?'es':''} recibida${s.reviews.length!==1?'s':''}</span></div>
+    </div></div>`);
+    const ci=c.querySelector('.ci');
+    if(s.reviews.length){
+      const box=$(`<div style="margin-top:10px"></div>`);
+      s.reviews.forEach(r=>{
+        box.appendChild($(`<div class="rv">
+          <div class="who"><b>${esc(r.reviewer)}</b><span>${new Date(r.created).toLocaleDateString()}</span></div>
+          <p><b>Funciona:</b> ${esc(r.good)}</p>
+          <p><b>Mejorar:</b> ${esc(r.improve)}</p>
+          <p><b>General:</b> ${esc(r.overall)}</p>
+        </div>`));
+      });
+      ci.appendChild(box);
+    }
+    el.appendChild(c);
+  });
+}
+
+// ---------- PERFIL ----------
+function renderPerfil(el){
+  el.innerHTML='';
+  const card=$(`<div class="card"><div class="ci"></div></div>`);
+  const ci=card.querySelector('.ci');
+  ci.appendChild($(`<div class="ttl">Tu perfil</div>`));
+  ci.appendChild($(`<div class="meta">${esc(ME.email)}</div>`));
+  const roleF=$(`<select>
+    <option value="">— Elegí una opción —</option>
+    <option>Lector/a apasionado/a</option>
+    <option>Escritor/a aficionado/a</option>
+    <option>Escritor/a en talleres</option>
+    <option>Tallerista / docente</option>
+    <option>Escritor/a publicado/a</option>
+  </select>`);
+  roleF.value=ME.role||'';
+  const bioF=$(`<textarea rows="4" placeholder="Contá quién sos como lector/escritor, qué géneros te gustan, qué buscás en la comunidad">${esc(ME.bio||'')}</textarea>`);
+  ci.appendChild(wrapField('¿Cómo te describís?', roleF));
+  ci.appendChild(wrapField('Sobre vos', bioF));
+  const btn=$(`<button class="btn b-wine" style="margin-top:4px">Guardar perfil</button>`);
+  ci.appendChild(btn);
+  card.appendChild($(`<div></div>`));
+  el.appendChild(card);
+  btn.onclick=async()=>{
+    try{ME=await api('/api/profile',{role:roleF.value,bio:bioF.value});toast('Perfil guardado.');}
+    catch(e){toast(e.message);}
+  };
+}
+
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// ---------- BOOT ----------
+(async()=>{
+  try{ME=await api('/api/me');renderApp();}
+  catch(e){renderAuth();}
+})();
+</script>
+</body>
+</html>

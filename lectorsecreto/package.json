@@ -1,0 +1,17 @@
+{
+  "name": "el-lector-secreto",
+  "version": "1.0.0",
+  "description": "Comunidad de escritores que se leen entre si",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1"
+  }
+}
