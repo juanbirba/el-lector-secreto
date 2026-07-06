@@ -18,8 +18,9 @@ db.exec(`
   );
   CREATE TABLE IF NOT EXISTS stories(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    author_id INTEGER, title TEXT, genre TEXT,
-    length TEXT, body TEXT, created INTEGER
+    author_id INTEGER, title TEXT, genre TEXT, type TEXT DEFAULT 'Cuento',
+    length TEXT, body TEXT, created INTEGER,
+    featured_status TEXT DEFAULT 'none'
   );
   CREATE TABLE IF NOT EXISTS reviews(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,10 +28,17 @@ db.exec(`
     good TEXT, improve TEXT, overall TEXT, rating REAL DEFAULT 0,
     reveal_status TEXT DEFAULT 'none', created INTEGER
   );
+  CREATE TABLE IF NOT EXISTS likes(
+    story_id INTEGER, user_id INTEGER, created INTEGER,
+    PRIMARY KEY (story_id, user_id)
+  );
 `);
 // Migracion segura: agrega columnas nuevas si la base ya existia sin ellas.
 for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
   try { db.exec(`ALTER TABLE reviews ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
+}
+for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status', "TEXT DEFAULT 'none'"]]) {
+  try { db.exec(`ALTER TABLE stories ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
 try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (e) { /* ya existe */ }
 
@@ -51,8 +59,8 @@ El dia que no estuvo, abri la lata. Adentro no habia cartas: habia semillas. Doc
 Tarde en entender que mi abuela no coleccionaba palabras. Coleccionaba primaveras que todavia no habian pasado. Cada vez que alguien le hacia dano, en lugar de guardar rencor, guardaba una semilla, y anotaba el dia en que pensaba plantarla.
 
 Este otono plante todas juntas en el fondo de casa. No se que va a crecer. Pero cuando salga el sol, voy a saber exactamente a quien perdono, y cuando.`;
-  const story = db.prepare('INSERT INTO stories(author_id,title,genre,length,body,created) VALUES(?,?,?,?,?,?)')
-    .run(author.lastInsertRowid, 'La lata de galletas', 'Realismo', 'corto', body, Date.now());
+  const story = db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created,featured_status) VALUES(?,?,?,?,?,?,?,?)')
+    .run(author.lastInsertRowid, 'La lata de galletas', 'Realismo', 'Cuento', 'corto', body, Date.now(), 'approved');
   db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,rating,reveal_status,created) VALUES(?,?,?,?,?,?,?,?)')
     .run(story.lastInsertRowid, reader.lastInsertRowid,
       'La imagen de las semillas como primaveras guardadas es preciosa y original.',
@@ -140,34 +148,45 @@ app.get('/api/admin/overview', auth, adminOnly, (req, res) => {
     FROM users u ORDER BY u.id ASC
   `).all();
   const stories = db.prepare(`
-    SELECT s.id, s.title, s.genre, s.length, s.created, u.name AS author,
+    SELECT s.id, s.title, s.genre, s.type, s.length, s.created, u.name AS author,
            (SELECT COUNT(*) FROM reviews r WHERE r.story_id=s.id) AS reviews_count,
            (SELECT AVG(rating) FROM reviews r WHERE r.story_id=s.id AND r.rating>0) AS avg_rating
     FROM stories s JOIN users u ON u.id=s.author_id ORDER BY s.created DESC
   `).all();
+  const reviews = db.prepare(`
+    SELECT r.id, r.good, r.improve, r.overall, r.rating, r.created,
+           s.title AS story_title, ur.name AS reviewer_name, ua.name AS author_name
+    FROM reviews r
+    JOIN stories s ON s.id=r.story_id
+    JOIN users ur ON ur.id=r.reviewer_id
+    JOIN users ua ON ua.id=s.author_id
+    ORDER BY r.created DESC
+  `).all();
   const stats = {
     total_users: users.length,
     total_stories: stories.length,
-    total_reviews: db.prepare('SELECT COUNT(*) AS c FROM reviews').get().c
+    total_reviews: reviews.length
   };
-  res.json({ stats, users, stories });
+  res.json({ stats, users, stories, reviews });
 });
 
 // --- Créditos según extensión ---
 const REWARD = { corto: 2, largo: 4 };   // ganás al reseñar
 const COST_PER_READER = { corto: 1, largo: 2 }; // pagás al publicar, por lector
 
-// --- Publicar cuento ---
+// --- Publicar texto ---
+const TIPOS = ['Relato', 'Cuento', 'Reseña', 'Capítulo de novela', 'Guión', 'Otro'];
 app.post('/api/stories', auth, (req, res) => {
-  const { title, genre, length, body, readers } = req.body;
+  const { title, genre, type, length, body, readers } = req.body;
   if (!title || !body || !['corto', 'largo'].includes(length)) return res.status(400).json({ error: 'Datos incompletos' });
+  const tipo = TIPOS.includes(type) ? type : 'Cuento';
   const n = Math.max(1, Math.min(10, parseInt(readers) || 2));
   const cost = COST_PER_READER[length] * n;
   const u = me(req);
   if (u.credits < cost) return res.status(400).json({ error: `Necesitás ${cost} créditos (${COST_PER_READER[length]} × ${n} lectores). Tenés ${u.credits}.` });
   db.prepare('UPDATE users SET credits=credits-? WHERE id=?').run(cost, u.id);
-  db.prepare('INSERT INTO stories(author_id,title,genre,length,body,created) VALUES(?,?,?,?,?,?)')
-    .run(u.id, title.trim(), genre || '', length, body, Date.now());
+  db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created) VALUES(?,?,?,?,?,?,?)')
+    .run(u.id, title.trim(), genre || '', tipo, length, body, Date.now());
   res.json({ ok: true, spent: cost });
 });
 
@@ -183,20 +202,88 @@ app.get('/api/feed', auth, (req, res) => {
   res.json(rows);
 });
 
-// --- Texto de la semana: el mejor puntuado (mayor promedio, con al menos 1 voto) ---
-app.get('/api/featured', auth, (req, res) => {
-  const row = db.prepare(`
-    SELECT s.id, s.title, s.genre, s.length, s.body, u.name AS author,
-           AVG(r.rating) AS avg_rating, COUNT(r.id) AS votes
+// --- Lógica del Texto de la semana ---
+// El mejor puntuado (no rechazado) es siempre el candidato. Si supera al destacado
+// actual, se le ofrece el puesto a su autor (queda 'pending' hasta que apruebe).
+function refreshFeatured() {
+  const pending = db.prepare("SELECT id FROM stories WHERE featured_status='pending'").get();
+  if (pending) return; // ya hay uno esperando respuesta de su autor
+
+  // Mejor candidato global que no haya sido rechazado
+  const cand = db.prepare(`
+    SELECT s.id, s.featured_status, AVG(r.rating) AS avg_rating, COUNT(r.id) AS votes
     FROM stories s
-    JOIN users u ON u.id = s.author_id
     JOIN reviews r ON r.story_id = s.id AND r.rating > 0
+    WHERE s.featured_status != 'declined'
     GROUP BY s.id
     HAVING votes >= 1
     ORDER BY avg_rating DESC, votes DESC, s.created DESC
     LIMIT 1
   `).get();
+  if (!cand) return;
+  // Si el mejor candidato ya es el aprobado, no hay nada que hacer
+  if (cand.featured_status === 'approved') return;
+  // Si hay un aprobado actual, solo lo destronamos si el candidato tiene mejor promedio
+  const current = db.prepare("SELECT id, (SELECT AVG(rating) FROM reviews r WHERE r.story_id=stories.id AND r.rating>0) AS avg_rating FROM stories WHERE featured_status='approved'").get();
+  if (current && cand.avg_rating <= current.avg_rating) return; // el actual sigue siendo el mejor o igual
+  // El candidato merece el puesto: se lo ofrecemos a su autor
+  db.prepare("UPDATE stories SET featured_status='pending' WHERE id=?").run(cand.id);
+}
+
+// El texto de la semana PÚBLICO (solo si el autor lo aprobó)
+app.get('/api/featured', auth, (req, res) => {
+  refreshFeatured();
+  const row = db.prepare(`
+    SELECT s.id, s.title, s.genre, s.type, s.length, s.body, u.name AS author,
+           (SELECT AVG(rating) FROM reviews r WHERE r.story_id=s.id AND r.rating>0) AS avg_rating,
+           (SELECT COUNT(*) FROM likes l WHERE l.story_id=s.id) AS likes,
+           EXISTS(SELECT 1 FROM likes l WHERE l.story_id=s.id AND l.user_id=?) AS liked_by_me
+    FROM stories s JOIN users u ON u.id=s.author_id
+    WHERE s.featured_status='approved'
+    LIMIT 1
+  `).get(req.session.uid);
   res.json(row || null);
+});
+
+// ¿Tengo un texto elegido esperando mi aprobación como autor?
+app.get('/api/featured/pending', auth, (req, res) => {
+  refreshFeatured();
+  const row = db.prepare(`
+    SELECT id, title FROM stories
+    WHERE featured_status='pending' AND author_id=?
+    LIMIT 1
+  `).get(req.session.uid);
+  res.json(row || null);
+});
+
+// El autor aprueba o rechaza que su texto sea el destacado público
+app.post('/api/featured/respond', auth, (req, res) => {
+  const { story_id, accept } = req.body;
+  const s = db.prepare('SELECT * FROM stories WHERE id=?').get(story_id);
+  if (!s) return res.status(404).json({ error: 'Texto no encontrado' });
+  if (s.author_id !== req.session.uid) return res.status(403).json({ error: 'No es tu texto' });
+  if (s.featured_status !== 'pending') return res.status(400).json({ error: 'Este texto ya no está pendiente' });
+  if (accept) {
+    // El nuevo destacado reemplaza al anterior
+    db.prepare("UPDATE stories SET featured_status='past' WHERE featured_status='approved'").run();
+    db.prepare("UPDATE stories SET featured_status='approved' WHERE id=?").run(story_id);
+  } else {
+    db.prepare("UPDATE stories SET featured_status='declined' WHERE id=?").run(story_id);
+    refreshFeatured(); // ofrecer el puesto al siguiente mejor
+  }
+  res.json({ ok: true });
+});
+
+// Like / unlike al texto de la semana (público)
+app.post('/api/like', auth, (req, res) => {
+  const { story_id } = req.body;
+  const s = db.prepare("SELECT id FROM stories WHERE id=? AND featured_status='approved'").get(story_id);
+  if (!s) return res.status(404).json({ error: 'Texto no disponible' });
+  const has = db.prepare('SELECT 1 FROM likes WHERE story_id=? AND user_id=?').get(story_id, req.session.uid);
+  if (has) db.prepare('DELETE FROM likes WHERE story_id=? AND user_id=?').run(story_id, req.session.uid);
+  else db.prepare('INSERT INTO likes(story_id,user_id,created) VALUES(?,?,?)').run(story_id, req.session.uid, Date.now());
+  const likes = db.prepare('SELECT COUNT(*) AS c FROM likes WHERE story_id=?').get(story_id).c;
+  res.json({ ok: true, likes, liked_by_me: !has });
 });
 
 // --- Enviar devolución (gana créditos) ---
