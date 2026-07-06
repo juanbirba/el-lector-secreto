@@ -3,14 +3,18 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
+const fs = require('fs');
 
-const db = new DatabaseSync(path.join(__dirname, 'data.db'));
+// La base vive en el disco persistente si existe DATA_DIR (Railway); si no, local.
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { /* ya existe */ }
+const db = new DatabaseSync(path.join(DATA_DIR, 'data.db'));
 db.exec(`
   CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE, pass TEXT, name TEXT,
     role TEXT DEFAULT '', bio TEXT DEFAULT '',
-    credits INTEGER DEFAULT 2
+    credits INTEGER DEFAULT 4
   );
   CREATE TABLE IF NOT EXISTS stories(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,6 +31,33 @@ db.exec(`
 // Migracion segura: agrega columnas nuevas si la base ya existia sin ellas.
 for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
   try { db.exec(`ALTER TABLE reviews ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
+}
+
+// Semilla: un cuento de ejemplo para que el "Texto de la semana" no arranque vacío.
+// Solo corre si no hay ningún cuento todavía.
+const storyCount = db.prepare('SELECT COUNT(*) AS c FROM stories').get().c;
+if (storyCount === 0) {
+  const seedHash = bcrypt.hashSync('ejemplo-lector-secreto', 8);
+  const author = db.prepare('INSERT INTO users(email,pass,name,role,bio,credits) VALUES(?,?,?,?,?,?)')
+    .run('ejemplo@ellectorsecreto.app', seedHash, 'Camila Ferreyra',
+      'Escritora en talleres', 'Escribo cuentos breves. Me interesa lo que queda sin decir.', 0);
+  const reader = db.prepare('INSERT INTO users(email,pass,name,role,bio,credits) VALUES(?,?,?,?,?,?)')
+    .run('lectora@ellectorsecreto.app', seedHash, 'Lectora invitada', 'Lectora apasionada', '', 0);
+  const body = `Mi abuela guardaba las cartas en una lata de galletas escocesas, de esas azules con un castillo dibujado. Nunca me dejo leerlas. "Cuando yo no este", decia, y seguia pelando papas como si eso zanjara el asunto.
+
+El dia que no estuvo, abri la lata. Adentro no habia cartas: habia semillas. Docenas de sobrecitos de papel, cada uno con una letra distinta, cada uno con una fecha. La mas vieja era de 1961. La mas nueva, de la primavera pasada.
+
+Tarde en entender que mi abuela no coleccionaba palabras. Coleccionaba primaveras que todavia no habian pasado. Cada vez que alguien le hacia dano, en lugar de guardar rencor, guardaba una semilla, y anotaba el dia en que pensaba plantarla.
+
+Este otono plante todas juntas en el fondo de casa. No se que va a crecer. Pero cuando salga el sol, voy a saber exactamente a quien perdono, y cuando.`;
+  const story = db.prepare('INSERT INTO stories(author_id,title,genre,length,body,created) VALUES(?,?,?,?,?,?)')
+    .run(author.lastInsertRowid, 'La lata de galletas', 'Realismo', 'corto', body, Date.now());
+  db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,rating,reveal_status,created) VALUES(?,?,?,?,?,?,?,?)')
+    .run(story.lastInsertRowid, reader.lastInsertRowid,
+      'La imagen de las semillas como primaveras guardadas es preciosa y original.',
+      'El segundo parrafo podria respirar un poco mas antes del giro.',
+      'Me dejo pensando un buen rato. Un cierre que ilumina todo lo anterior.',
+      4.5, 'none', Date.now());
 }
 
 const app = express();
@@ -96,6 +127,22 @@ app.get('/api/feed', auth, (req, res) => {
     ORDER BY s.created DESC
   `).all(req.session.uid, req.session.uid);
   res.json(rows);
+});
+
+// --- Texto de la semana: el mejor puntuado (mayor promedio, con al menos 1 voto) ---
+app.get('/api/featured', auth, (req, res) => {
+  const row = db.prepare(`
+    SELECT s.id, s.title, s.genre, s.length, s.body, u.name AS author,
+           AVG(r.rating) AS avg_rating, COUNT(r.id) AS votes
+    FROM stories s
+    JOIN users u ON u.id = s.author_id
+    JOIN reviews r ON r.story_id = s.id AND r.rating > 0
+    GROUP BY s.id
+    HAVING votes >= 1
+    ORDER BY avg_rating DESC, votes DESC, s.created DESC
+    LIMIT 1
+  `).get();
+  res.json(row || null);
 });
 
 // --- Enviar devolución (gana créditos) ---
