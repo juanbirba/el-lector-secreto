@@ -162,25 +162,25 @@
   /* texto de la semana - portada de revista */
   .featured{position:relative;background:linear-gradient(155deg,#1f2129,#2a2d38);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:30px;}
   .featured::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--plum),var(--gold),var(--sage));}
-  .feat-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:0;}
-  .feat-side{padding:30px 30px 28px;display:flex;flex-direction:column;justify-content:center;}
+  .feat-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:0;align-items:stretch;}
+  .feat-side{padding:32px 30px;display:flex;flex-direction:column;justify-content:center;}
   .feat-eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:.22em;color:var(--gold);margin-bottom:16px;display:flex;align-items:center;gap:8px;font-weight:700;}
   .feat-eyebrow svg{width:14px;height:14px;}
   .feat-genre{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--sage);font-weight:700;margin-bottom:12px;}
   .feat-title{font-family:var(--sans);font-size:34px;line-height:1.04;font-weight:800;letter-spacing:-.025em;margin-bottom:12px;color:var(--text);}
   .feat-author{font-size:13px;color:var(--dim);margin-bottom:18px;}
   .feat-author b{color:var(--text);font-weight:600;}
-  .feat-stars{display:flex;align-items:center;gap:9px;margin-bottom:16px;}
+  .feat-stars{display:flex;align-items:center;gap:9px;margin-bottom:20px;}
   .feat-stars .rate-val{color:var(--gold);font-size:14px;font-weight:700;}
-  .feat-body{padding:30px 30px 30px 0;position:relative;}
-  .feat-quote{font-family:var(--sans);font-size:15px;line-height:1.75;color:#d6d5cf;font-weight:300;position:relative;white-space:pre-wrap;max-height:210px;overflow:hidden;}
-  .feat-fade{position:absolute;left:0;right:30px;bottom:64px;height:80px;background:linear-gradient(transparent,#25283180);pointer-events:none;}
+  .feat-body{padding:32px 32px 32px 0;position:relative;display:flex;flex-direction:column;justify-content:center;border-left:1px solid var(--line);padding-left:32px;}
+  .feat-quote{font-family:var(--sans);font-size:15px;line-height:1.75;color:#d6d5cf;font-weight:300;position:relative;white-space:pre-wrap;max-height:230px;overflow:hidden;}
+  .feat-fade{position:absolute;left:32px;right:32px;bottom:32px;height:80px;background:linear-gradient(transparent,#25283180);pointer-events:none;}
   .feat-read{margin-top:16px;}
   .feat-like{margin-top:14px;}
   .likebtn{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--dim);border-radius:999px;padding:6px 15px;cursor:pointer;font-size:13px;font-weight:600;font-family:var(--sans);transition:.14s;}
   .likebtn:hover{border-color:var(--plum);color:var(--plum2);}
   .likebtn.on{background:var(--plum);border-color:var(--plum);color:#fff;}
-  @media(max-width:620px){ .feat-grid{grid-template-columns:1fr;} .feat-body{padding:0 30px 30px;} .feat-title{font-size:28px;} .feat-fade{right:30px;} }
+  @media(max-width:620px){ .feat-grid{grid-template-columns:1fr;} }
 
   /* columna editorial (lado derecho) */
   .side-head{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--gold);font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;}
@@ -192,7 +192,11 @@
   .ed-kind.noticia{background:rgba(125,138,111,.18);color:var(--sage);}
   .ed-title{font-size:16px;font-weight:800;letter-spacing:-.01em;line-height:1.2;margin-bottom:7px;color:var(--text);}
   .ed-body{font-size:13px;line-height:1.6;color:var(--dim);white-space:pre-wrap;}
-  .ed-link{display:inline-block;margin-top:9px;font-size:12px;color:var(--gold);font-weight:600;}
+  .ed-more{background:none;border:none;color:var(--gold);font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer;padding:8px 0 0;display:block;}
+  .ed-more:hover{color:var(--plum2);}
+  .ed-link{display:block;margin-top:12px;font-size:11.5px;color:var(--sage);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+  .ed-link:hover{color:var(--gold);}
+  .ed-modal-body{font-size:15px;line-height:1.78;color:#2a2b30;white-space:pre-wrap;margin:14px 0 18px;max-height:50vh;overflow-y:auto;}
   .ed-date{font-size:10.5px;color:var(--dim);margin-top:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.7;}
   .ed-del{float:right;font-size:11px;color:var(--dim);cursor:pointer;border:none;background:none;}
   .ed-del:hover{color:var(--plum2);}
@@ -223,6 +227,9 @@
   .adm-table{width:100%;border-collapse:collapse;background:var(--paper);color:var(--ink);border-radius:6px;overflow:hidden;font-size:12.5px;}
   .adm-table th{background:var(--plum);color:#f3e9dc;text-align:left;padding:8px 10px;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;}
   .adm-table td{padding:8px 10px;border-top:1px solid #e0d2b6;}
+  .adm-trash{background:none;border:none;cursor:pointer;font-size:14px;opacity:.55;transition:.12s;padding:2px 4px;border-radius:4px;}
+  .adm-trash:hover{opacity:1;background:rgba(168,69,94,.12);}
+  .adm-lock{opacity:.5;font-size:13px;}
   .adm-table tr:nth-child(even) td{background:#ece2cf;}
   .adm-wrap{overflow-x:auto;margin-bottom:8px;}
   .regstamp{font-size:11.5px;color:#8a7f6c;margin-top:8px;font-style:italic;}
@@ -253,6 +260,68 @@
   .reward-chip{display:inline-block;background:#ece7db;color:#6b5a2e;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;}
   .reward-banner{background:#ece7db;border:1px solid #d3c39c;border-radius:5px;padding:10px 13px;font-size:13px;color:#5a4f36;margin-bottom:14px;}
   .reward-banner b{color:var(--plum);}
+
+  /* ===== Ajustes para celular ===== */
+  @media(max-width:620px){
+    .wrap{padding:16px 15px 70px;}
+    /* Cabecera / masthead */
+    .top{padding-bottom:14px;margin-bottom:4px;}
+    .logo h1{font-size:23px;}
+    .logo small{font-size:9.5px;letter-spacing:.12em;}
+    .logo svg{width:34px;height:34px;}
+    .pill{padding:6px 12px 6px 8px;}
+    .pill .n{font-size:16px;}
+    .bell{width:34px;height:34px;}
+    /* Tabs: un poco más compactas */
+    .tabs{gap:2px;margin-bottom:20px;}
+    .tab{font-size:11px;padding:8px 12px;letter-spacing:.03em;}
+    /* Secciones */
+    .section-head h2{font-size:19px;}
+    .section-head p{font-size:12px;}
+    /* Tarjetas de texto */
+    .card{padding:17px 17px;border-radius:9px;}
+    .ttl{font-size:18px;}
+    .tag{font-size:9px;}
+    /* Texto de la semana */
+    .featured{margin-bottom:22px;}
+    .feat-side{padding:22px 20px 6px;}
+    .feat-body{padding:6px 20px 24px;border-left:none;padding-left:20px;}
+    .feat-title{font-size:25px;}
+    .feat-eyebrow{font-size:9.5px;margin-bottom:12px;}
+    .feat-quote{font-size:14px;max-height:180px;}
+    .feat-fade{left:20px;right:20px;bottom:24px;}
+    /* Columna del editor */
+    .side-head{font-size:10.5px;margin-top:8px;}
+    .ed-card{padding:15px 16px;}
+    .ed-title{font-size:15px;}
+    .ed-body{font-size:12.5px;}
+    /* Comunidad */
+    .writers-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+    .wcard{padding:18px 14px;}
+    .wavatar{width:64px;height:64px;font-size:26px;}
+    .wname{font-size:15px;}
+    /* Modales: ocupar mejor la pantalla chica */
+    .modal{padding:22px 20px;border-radius:12px;}
+    .modal h2{font-size:19px;}
+    .reader{font-size:15px;padding:16px 17px;line-height:1.75;}
+    /* Formularios */
+    .field label{font-size:10.5px;}
+    input,select,textarea{font-size:16px;} /* 16px evita el zoom automático de iOS */
+    /* Notificaciones */
+    .notif-card{padding:14px 15px;gap:11px;}
+    .notif-title{font-size:15px;}
+    .notif-txt{font-size:13px;}
+    /* Panel admin: tablas con scroll horizontal ya activo, texto más chico */
+    .adm-table{font-size:11.5px;}
+    .adm-stat{padding:12px 14px;min-width:100px;}
+    .adm-stat .n{font-size:22px;}
+  }
+  /* Pantallas muy angostas (celulares chicos) */
+  @media(max-width:380px){
+    .feat-title{font-size:22px;}
+    .logo h1{font-size:21px;}
+    .tab{font-size:10.5px;padding:7px 10px;}
+  }
 </style>
 </head>
 <body>
@@ -434,7 +503,6 @@ function renderApp(){
     <button class="tab ${TAB==='escritores'?'on':''}" data-t="escritores">Escritores</button>
     <button class="tab ${TAB==='pub'?'on':''}" data-t="pub">Publicar</button>
     <button class="tab ${TAB==='mios'?'on':''}" data-t="mios">Mis textos</button>
-    <button class="tab ${TAB==='notif'?'on':''}" data-t="notif">Notificaciones${notifCount>0?` (${notifCount})`:''}</button>
     <button class="tab ${TAB==='perfil'?'on':''}" data-t="perfil">Perfil</button>
     ${ME.is_admin?`<button class="tab ${TAB==='admin'?'on':''}" data-t="admin">Admin</button>`:''}
   </div>`);
@@ -484,6 +552,7 @@ async function renderNotificaciones(el){
   let data;
   try{data=await api('/api/notifications');}catch(e){toast(e.message);return;}
   window.__notifCount=data.count;
+  el.appendChild($(`<div class="section-head"><h2>Notificaciones</h2><p>Pedidos para descubrirte y avisos sobre tus textos destacados.</p></div>`));
   if(!data.notes.length){
     el.appendChild($(`<div class="empty-art"><div class="empty-art-ico">${bellSVG()}</div><div class="empty-art-txt">No tenés notificaciones por ahora.<br><span>Cuando alguien quiera descubrirte o tu texto sea elegido, aparecerá acá.</span></div></div>`));
     return;
@@ -564,30 +633,45 @@ async function renderAdmin(el){
   el.appendChild($(`<div class="adm-sec">Usuarios</div>`));
   const uwrap=$(`<div class="adm-wrap"></div>`);
   const ut=$(`<table class="adm-table"><thead><tr>
-    <th>ID</th><th>Nombre</th><th>Email</th><th>Perfil</th><th>Créditos</th><th>Textos</th><th>Devol.</th>
+    <th>ID</th><th>Nombre</th><th>Email</th><th>Perfil</th><th>Créditos</th><th>Textos</th><th>Devol.</th><th></th>
   </tr></thead><tbody></tbody></table>`);
   const utb=ut.querySelector('tbody');
   data.users.forEach(u=>{
-    utb.appendChild($(`<tr>
+    const isAdmin = u.email==='juanbirba@gmail.com';
+    const row=$(`<tr>
       <td>${u.id}</td><td>${esc(u.name)}</td><td>${esc(u.email)}</td>
       <td>${esc(u.role||'—')}</td><td>${u.credits}</td><td>${u.stories_count}</td><td>${u.reviews_count}</td>
-    </tr>`));
+      <td>${isAdmin?'<span class="adm-lock" title="Cuenta protegida">🔒</span>':'<button class="adm-trash" title="Borrar usuario">🗑</button>'}</td>
+    </tr>`);
+    if(!isAdmin){
+      row.querySelector('.adm-trash').onclick=async()=>{
+        if(!confirm(`¿Borrar a ${u.name}? Se eliminarán también sus textos y devoluciones. Esta acción no se puede deshacer.`)) return;
+        try{ await api('/api/admin/user/'+u.id, null, 'DELETE'); toast('Usuario borrado.'); renderAdmin(el); }catch(e){toast(e.message);}
+      };
+    }
+    utb.appendChild(row);
   });
   uwrap.appendChild(ut); el.appendChild(uwrap);
 
   el.appendChild($(`<div class="adm-sec">Textos</div>`));
   const swrap=$(`<div class="adm-wrap"></div>`);
   const st=$(`<table class="adm-table"><thead><tr>
-    <th>ID</th><th>Título</th><th>Autor</th><th>Tipo</th><th>Género</th><th>Extensión</th><th>Devol.</th><th>Prom.</th><th>Fecha y hora</th>
+    <th>ID</th><th>Título</th><th>Autor</th><th>Tipo</th><th>Género</th><th>Extensión</th><th>Devol.</th><th>Prom.</th><th>Fecha y hora</th><th></th>
   </tr></thead><tbody></tbody></table>`);
   const stb=st.querySelector('tbody');
   data.stories.forEach(s=>{
     const avg = s.avg_rating!=null ? (Math.round(s.avg_rating*10)/10).toFixed(1)+'★' : '—';
-    stb.appendChild($(`<tr>
+    const row=$(`<tr>
       <td>${s.id}</td><td>${esc(s.title)}</td><td>${esc(s.author)}</td>
       <td>${esc(s.type||'—')}</td><td>${esc(s.genre||'—')}</td><td>${pagesLabel(s)}</td>
       <td>${s.reviews_count}</td><td>${avg}</td><td>${fmtDateTime(s.created)}</td>
-    </tr>`));
+      <td><button class="adm-trash" title="Borrar texto">🗑</button></td>
+    </tr>`);
+    row.querySelector('.adm-trash').onclick=async()=>{
+      if(!confirm(`¿Borrar el texto "${s.title}" de ${s.author}? Se eliminarán sus devoluciones (los lectores conservan sus créditos). Esta acción no se puede deshacer.`)) return;
+      try{ await api('/api/admin/story/'+s.id, null, 'DELETE'); toast('Texto borrado.'); renderAdmin(el); }catch(e){toast(e.message);}
+    };
+    stb.appendChild(row);
   });
   swrap.appendChild(st); el.appendChild(swrap);
 
@@ -644,14 +728,21 @@ async function renderEditorial(el){
     return;
   }
   items.forEach(it=>{
+    const LIMIT=180;
+    const long = it.body.length>LIMIT;
+    const preview = long ? it.body.slice(0,LIMIT).trim()+'…' : it.body;
     const c=$(`<div class="ed-card">
       ${ME.is_admin?`<button class="ed-del" title="Borrar">✕</button>`:''}
       <span class="ed-kind ${it.kind}">${it.kind}</span>
       <div class="ed-title">${esc(it.title)}</div>
-      <div class="ed-body">${esc(it.body)}</div>
-      ${it.link?`<a class="ed-link" href="${esc(it.link)}" target="_blank" rel="noopener">Leer más →</a>`:''}
+      <div class="ed-body">${esc(preview)}</div>
+      ${long?`<button class="ed-more">Mostrar más</button>`:''}
+      ${it.link?`<a class="ed-link" href="${esc(it.link)}" target="_blank" rel="noopener">Ver en sitio web →</a>`:''}
       <div class="ed-date">${fmtDateTime(it.created)}</div>
     </div>`);
+    if(long){
+      c.querySelector('.ed-more').onclick=()=>openEditorialModal(it);
+    }
     if(ME.is_admin){
       c.querySelector('.ed-del').onclick=async()=>{
         try{ await api('/api/editorial/'+it.id, null, 'DELETE'); toast('Publicación borrada.'); renderEditorial(el); }catch(e){toast(e.message);}
@@ -659,6 +750,20 @@ async function renderEditorial(el){
     }
     el.appendChild(c);
   });
+}
+function openEditorialModal(it){
+  const ov=$(`<div class="ov"></div>`);
+  const m=$(`<div class="modal" style="max-width:640px">
+    <span class="ed-kind ${it.kind}" style="margin-bottom:6px">${it.kind}</span>
+    <h2 style="margin-top:8px">${esc(it.title)}</h2>
+    <div class="sub">${fmtDateTime(it.created)}</div>
+    <div class="ed-modal-body">${esc(it.body)}</div>
+    ${it.link?`<a class="btn b-ghost-d sm" href="${esc(it.link)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px">Ver en sitio web →</a>`:''}
+    <div class="mact"><button class="btn b-wine" id="close">Cerrar</button></div>
+  </div>`);
+  ov.appendChild(m); document.body.appendChild(ov);
+  m.querySelector('#close').onclick=()=>ov.remove();
+  ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
 }
 function featherSVG(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>`; }
 
