@@ -222,6 +222,37 @@ app.get('/api/admin/overview', auth, adminOnly, (req, res) => {
   res.json({ stats, users, stories, reviews });
 });
 
+// --- Borrar un texto (cascada: devoluciones y likes; NO toca créditos de quien reseñó) ---
+app.delete('/api/admin/story/:id', auth, adminOnly, (req, res) => {
+  const id = parseInt(req.params.id);
+  const s = db.prepare('SELECT id FROM stories WHERE id=?').get(id);
+  if (!s) return res.status(404).json({ error: 'Texto no encontrado' });
+  db.prepare('DELETE FROM reviews WHERE story_id=?').run(id);
+  db.prepare('DELETE FROM likes WHERE story_id=?').run(id);
+  db.prepare('DELETE FROM stories WHERE id=?').run(id);
+  res.json({ ok: true });
+});
+
+// --- Borrar un usuario (cascada completa: sus textos, devoluciones y likes) ---
+app.delete('/api/admin/user/:id', auth, adminOnly, (req, res) => {
+  const id = parseInt(req.params.id);
+  const u = db.prepare('SELECT id, email FROM users WHERE id=?').get(id);
+  if (!u) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (u.email === ADMIN_EMAIL) return res.status(400).json({ error: 'No podés borrar la cuenta de administrador' });
+  // Borrar reviews sobre los textos de este usuario, y sus textos
+  const stories = db.prepare('SELECT id FROM stories WHERE author_id=?').all(id);
+  for (const st of stories) {
+    db.prepare('DELETE FROM reviews WHERE story_id=?').run(st.id);
+    db.prepare('DELETE FROM likes WHERE story_id=?').run(st.id);
+  }
+  db.prepare('DELETE FROM stories WHERE author_id=?').run(id);
+  // Borrar las reviews y likes que este usuario hizo sobre textos de otros
+  db.prepare('DELETE FROM reviews WHERE reviewer_id=?').run(id);
+  db.prepare('DELETE FROM likes WHERE user_id=?').run(id);
+  db.prepare('DELETE FROM users WHERE id=?').run(id);
+  res.json({ ok: true });
+});
+
 // --- Publicar texto ---
 const TIPOS = ['Relato', 'Cuento', 'Reseña', 'Capítulo de novela', 'Guión', 'Otro'];
 app.post('/api/stories', auth, (req, res) => {
