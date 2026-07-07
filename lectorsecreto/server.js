@@ -42,6 +42,21 @@ for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status',
 }
 try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (e) { /* ya existe */ }
 
+// --- Créditos: cálculo automático por carillas ---
+const WORDS_PER_PAGE = 275; // ~275 palabras = 1 carilla
+function countPages(body) {
+  const words = (body || '').trim().split(/\s+/).filter(Boolean).length;
+  return words / WORDS_PER_PAGE;
+}
+// Tramo de 5 carillas: 5.0 -> tramo 1; 5.1 -> tramo 2; 10.0 -> tramo 2; 10.1 -> tramo 3
+function tier(pages) {
+  const t = Math.ceil((pages - 1e-9) / 5);
+  return Math.max(1, t);
+}
+const costPerReader = (pages) => tier(pages);        // créditos por lector al publicar
+const rewardForReading = (pages) => tier(pages) * 2; // créditos al dar devolución
+
+
 // Semilla: un cuento de ejemplo para que el "Texto de la semana" no arranque vacío.
 // Solo corre si no hay ningún cuento todavía.
 const storyCount = db.prepare('SELECT COUNT(*) AS c FROM stories').get().c;
@@ -60,7 +75,7 @@ Tarde en entender que mi abuela no coleccionaba palabras. Coleccionaba primavera
 
 Este otono plante todas juntas en el fondo de casa. No se que va a crecer. Pero cuando salga el sol, voy a saber exactamente a quien perdono, y cuando.`;
   const story = db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created,featured_status) VALUES(?,?,?,?,?,?,?,?)')
-    .run(author.lastInsertRowid, 'La lata de galletas', 'Realismo', 'Cuento', 'corto', body, Date.now(), 'approved');
+    .run(author.lastInsertRowid, 'La lata de galletas', 'Realismo', 'Cuento', String(countPages(body).toFixed(2)), body, Date.now(), 'approved');
   db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,rating,reveal_status,created) VALUES(?,?,?,?,?,?,?,?)')
     .run(story.lastInsertRowid, reader.lastInsertRowid,
       'La imagen de las semillas como primaveras guardadas es preciosa y original.',
@@ -170,23 +185,24 @@ app.get('/api/admin/overview', auth, adminOnly, (req, res) => {
   res.json({ stats, users, stories, reviews });
 });
 
-// --- Créditos según extensión ---
-const REWARD = { corto: 2, largo: 4 };   // ganás al reseñar
-const COST_PER_READER = { corto: 1, largo: 2 }; // pagás al publicar, por lector
-
 // --- Publicar texto ---
 const TIPOS = ['Relato', 'Cuento', 'Reseña', 'Capítulo de novela', 'Guión', 'Otro'];
 app.post('/api/stories', auth, (req, res) => {
-  const { title, genre, type, length, body, readers } = req.body;
-  if (!title || !body || !['corto', 'largo'].includes(length)) return res.status(400).json({ error: 'Datos incompletos' });
+  const { title, genre, type, body, readers } = req.body;
+  if (!title || !body || body.trim().length < 20) return res.status(400).json({ error: 'Datos incompletos' });
   const tipo = TIPOS.includes(type) ? type : 'Cuento';
   const n = Math.max(1, Math.min(10, parseInt(readers) || 2));
-  const cost = COST_PER_READER[length] * n;
+  const pages = countPages(body);
+  const per = costPerReader(pages);
+  const cost = per * n;
   const u = me(req);
-  if (u.credits < cost) return res.status(400).json({ error: `Necesitás ${cost} créditos (${COST_PER_READER[length]} × ${n} lectores). Tenés ${u.credits}.` });
+  if (u.credits < cost) {
+    return res.status(400).json({ error: 'Necesitás más créditos. Conseguilos leyendo el material de un colega y dándole una devolución.' });
+  }
   db.prepare('UPDATE users SET credits=credits-? WHERE id=?').run(cost, u.id);
+  // length ahora guarda las carillas (número) para calcular la recompensa al leer
   db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created) VALUES(?,?,?,?,?,?,?)')
-    .run(u.id, title.trim(), genre || '', tipo, length, body, Date.now());
+    .run(u.id, title.trim(), genre || '', tipo, String(pages.toFixed(2)), body, Date.now());
   res.json({ ok: true, spent: cost });
 });
 
@@ -300,7 +316,7 @@ app.post('/api/reviews', auth, (req, res) => {
   r = Math.round(r * 2) / 2; // redondea a media estrella
   db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,rating,created) VALUES(?,?,?,?,?,?,?)')
     .run(story_id, req.session.uid, good.trim(), improve.trim(), overall.trim(), r, Date.now());
-  const reward = REWARD[s.length];
+  const reward = rewardForReading(countPages(s.body));
   db.prepare('UPDATE users SET credits=credits+? WHERE id=?').run(reward, req.session.uid);
   res.json({ ok: true, reward });
 });
@@ -347,6 +363,30 @@ app.get('/api/reveal/pending', auth, (req, res) => {
     WHERE r.reviewer_id=? AND r.reveal_status='requested'
     ORDER BY r.created DESC`).all(req.session.uid);
   res.json(rows);
+});
+
+// --- Notificaciones: junta todos los avisos pendientes del usuario ---
+app.get('/api/notifications', auth, (req, res) => {
+  refreshFeatured();
+  const notes = [];
+  // Pedidos de descubrimiento que me llegaron como lector
+  const reveals = db.prepare(`
+    SELECT r.id, s.title, u.name AS author_name, r.created
+    FROM reviews r JOIN stories s ON s.id=r.story_id JOIN users u ON u.id=s.author_id
+    WHERE r.reviewer_id=? AND r.reveal_status='requested'
+    ORDER BY r.created DESC`).all(req.session.uid);
+  reveals.forEach(x => notes.push({
+    kind: 'reveal', id: x.id, title: x.title, author_name: x.author_name, created: x.created
+  }));
+  // ¿Mi texto fue elegido como texto de la semana y espera mi aprobación?
+  const feat = db.prepare(`
+    SELECT id, title, created FROM stories
+    WHERE featured_status='pending' AND author_id=?`).all(req.session.uid);
+  feat.forEach(x => notes.push({
+    kind: 'featured', id: x.id, title: x.title, created: x.created
+  }));
+  notes.sort((a, b) => b.created - a.created);
+  res.json({ count: notes.length, notes });
 });
 
 // --- El lector acepta o rechaza descubrirse ---
