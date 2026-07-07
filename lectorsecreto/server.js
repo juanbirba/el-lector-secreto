@@ -32,6 +32,11 @@ db.exec(`
     story_id INTEGER, user_id INTEGER, created INTEGER,
     PRIMARY KEY (story_id, user_id)
   );
+  CREATE TABLE IF NOT EXISTS editorial(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT DEFAULT 'nota', title TEXT, body TEXT,
+    link TEXT DEFAULT '', created INTEGER
+  );
 `);
 // Migracion segura: agrega columnas nuevas si la base ya existia sin ellas.
 for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
@@ -41,6 +46,9 @@ for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status',
   try { db.exec(`ALTER TABLE stories ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
 try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (e) { /* ya existe */ }
+for (const [col, def] of [['sec_question', "TEXT DEFAULT ''"], ['sec_answer', "TEXT DEFAULT ''"]]) {
+  try { db.exec(`ALTER TABLE users ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
+}
 
 // --- Créditos: cálculo automático por carillas ---
 const WORDS_PER_PAGE = 275; // ~275 palabras = 1 carilla
@@ -57,31 +65,13 @@ const costPerReader = (pages) => tier(pages);        // créditos por lector al 
 const rewardForReading = (pages) => tier(pages) * 2; // créditos al dar devolución
 
 
-// Semilla: un cuento de ejemplo para que el "Texto de la semana" no arranque vacío.
-// Solo corre si no hay ningún cuento todavía.
-const storyCount = db.prepare('SELECT COUNT(*) AS c FROM stories').get().c;
-if (storyCount === 0) {
-  const seedHash = bcrypt.hashSync('ejemplo-lector-secreto', 8);
-  const author = db.prepare('INSERT INTO users(email,pass,name,role,bio,credits) VALUES(?,?,?,?,?,?)')
-    .run('ejemplo@ellectorsecreto.app', seedHash, 'Camila Ferreyra',
-      'Escritora en talleres', 'Escribo cuentos breves. Me interesa lo que queda sin decir.', 0);
-  const reader = db.prepare('INSERT INTO users(email,pass,name,role,bio,credits) VALUES(?,?,?,?,?,?)')
-    .run('lectora@ellectorsecreto.app', seedHash, 'Lectora invitada', 'Lectora apasionada', '', 0);
-  const body = `Mi abuela guardaba las cartas en una lata de galletas escocesas, de esas azules con un castillo dibujado. Nunca me dejo leerlas. "Cuando yo no este", decia, y seguia pelando papas como si eso zanjara el asunto.
-
-El dia que no estuvo, abri la lata. Adentro no habia cartas: habia semillas. Docenas de sobrecitos de papel, cada uno con una letra distinta, cada uno con una fecha. La mas vieja era de 1961. La mas nueva, de la primavera pasada.
-
-Tarde en entender que mi abuela no coleccionaba palabras. Coleccionaba primaveras que todavia no habian pasado. Cada vez que alguien le hacia dano, en lugar de guardar rencor, guardaba una semilla, y anotaba el dia en que pensaba plantarla.
-
-Este otono plante todas juntas en el fondo de casa. No se que va a crecer. Pero cuando salga el sol, voy a saber exactamente a quien perdono, y cuando.`;
-  const story = db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created,featured_status) VALUES(?,?,?,?,?,?,?,?)')
-    .run(author.lastInsertRowid, 'La lata de galletas', 'Realismo', 'Cuento', String(countPages(body).toFixed(2)), body, Date.now(), 'approved');
-  db.prepare('INSERT INTO reviews(story_id,reviewer_id,good,improve,overall,rating,reveal_status,created) VALUES(?,?,?,?,?,?,?,?)')
-    .run(story.lastInsertRowid, reader.lastInsertRowid,
-      'La imagen de las semillas como primaveras guardadas es preciosa y original.',
-      'El segundo parrafo podria respirar un poco mas antes del giro.',
-      'Me dejo pensando un buen rato. Un cierre que ilumina todo lo anterior.',
-      4.5, 'none', Date.now());
+// Semilla: una nota editorial de bienvenida, solo si no hay ninguna.
+const edCount = db.prepare('SELECT COUNT(*) AS c FROM editorial').get().c;
+if (edCount === 0) {
+  db.prepare('INSERT INTO editorial(kind,title,body,link,created) VALUES(?,?,?,?,?)')
+    .run('nota', 'Bienvenidos a El lector secreto',
+      'Este es un espacio hecho por escritores y para escritores. Acá compartimos nuestros textos, nos leemos con honestidad y cuidamos las obras de los demás como quisiéramos que cuidaran las nuestras. Que la lectura secreta los encuentre.',
+      '', Date.now());
 }
 
 const app = express();
@@ -103,17 +93,46 @@ const adminOnly = (req, res, next) => {
 };
 
 // --- Auth ---
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 app.post('/api/register', (req, res) => {
-  const { email, pass, name } = req.body;
+  const { email, pass, name, sec_question, sec_answer } = req.body;
   if (!email || !pass || !name) return res.status(400).json({ error: 'Faltan datos' });
+  const mail = String(email).toLowerCase().trim();
+  if (!EMAIL_RE.test(mail)) return res.status(400).json({ error: 'Ingresá un email válido (ej: nombre@correo.com)' });
+  if (String(pass).length < 4) return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+  if (!sec_question || !sec_answer) return res.status(400).json({ error: 'Completá la pregunta y respuesta de seguridad para poder recuperar tu contraseña' });
   try {
     const hash = bcrypt.hashSync(pass, 8);
-    const r = db.prepare('INSERT INTO users(email,pass,name) VALUES(?,?,?)').run(email.toLowerCase().trim(), hash, name.trim());
+    const secHash = bcrypt.hashSync(String(sec_answer).toLowerCase().trim(), 8);
+    const r = db.prepare('INSERT INTO users(email,pass,name,sec_question,sec_answer) VALUES(?,?,?,?,?)')
+      .run(mail, hash, name.trim(), String(sec_question).trim(), secHash);
     req.session.uid = r.lastInsertRowid;
     res.json(me(req));
   } catch (e) {
     res.status(400).json({ error: 'Ese email ya está registrado' });
   }
+});
+
+// Recuperar contraseña: paso 1, obtener la pregunta de seguridad del email
+app.post('/api/recover/question', (req, res) => {
+  const mail = String(req.body.email || '').toLowerCase().trim();
+  const u = db.prepare('SELECT sec_question FROM users WHERE email=?').get(mail);
+  if (!u || !u.sec_question) return res.status(404).json({ error: 'No encontramos una cuenta con esa pregunta de seguridad para ese email' });
+  res.json({ question: u.sec_question });
+});
+
+// Recuperar contraseña: paso 2, verificar respuesta y fijar nueva contraseña
+app.post('/api/recover/reset', (req, res) => {
+  const mail = String(req.body.email || '').toLowerCase().trim();
+  const { answer, new_pass } = req.body;
+  const u = db.prepare('SELECT * FROM users WHERE email=?').get(mail);
+  if (!u) return res.status(404).json({ error: 'Cuenta no encontrada' });
+  if (!bcrypt.compareSync(String(answer || '').toLowerCase().trim(), u.sec_answer)) {
+    return res.status(401).json({ error: 'La respuesta de seguridad no coincide' });
+  }
+  if (String(new_pass || '').length < 4) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 4 caracteres' });
+  db.prepare('UPDATE users SET pass=? WHERE id=?').run(bcrypt.hashSync(new_pass, 8), u.id);
+  res.json({ ok: true });
 });
 
 app.post('/api/login', (req, res) => {
@@ -152,6 +171,24 @@ app.get('/api/writers', auth, (req, res) => {
     ORDER BY (stories_count + reviews_count) DESC, u.name ASC
   `).all();
   res.json(rows);
+});
+
+// --- Columna editorial (visible para todos, editable solo por el admin) ---
+app.get('/api/editorial', auth, (req, res) => {
+  const rows = db.prepare('SELECT id, kind, title, body, link, created FROM editorial ORDER BY created DESC LIMIT 20').all();
+  res.json(rows);
+});
+app.post('/api/editorial', auth, adminOnly, (req, res) => {
+  const { kind, title, body, link } = req.body;
+  if (!title || !body) return res.status(400).json({ error: 'Falta título o contenido' });
+  const k = ['nota', 'cuento', 'noticia'].includes(kind) ? kind : 'nota';
+  db.prepare('INSERT INTO editorial(kind,title,body,link,created) VALUES(?,?,?,?,?)')
+    .run(k, title.trim(), body.trim(), (link || '').trim(), Date.now());
+  res.json({ ok: true });
+});
+app.delete('/api/editorial/:id', auth, adminOnly, (req, res) => {
+  db.prepare('DELETE FROM editorial WHERE id=?').run(parseInt(req.params.id));
+  res.json({ ok: true });
 });
 
 // --- Panel de admin (solo juanbirba@gmail.com) ---
