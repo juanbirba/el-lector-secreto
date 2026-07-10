@@ -20,7 +20,9 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     author_id INTEGER, title TEXT, genre TEXT, type TEXT DEFAULT 'Cuento',
     length TEXT, body TEXT, created INTEGER,
-    featured_status TEXT DEFAULT 'none'
+    featured_status TEXT DEFAULT 'none',
+    group_id INTEGER DEFAULT 0,
+    featured_status_group TEXT DEFAULT 'none'
   );
   CREATE TABLE IF NOT EXISTS reviews(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,17 +39,34 @@ db.exec(`
     kind TEXT DEFAULT 'nota', title TEXT, body TEXT,
     link TEXT DEFAULT '', created INTEGER
   );
+  CREATE TABLE IF NOT EXISTS groups(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT, pass TEXT, created INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS group_members(
+    group_id INTEGER, user_id INTEGER, joined INTEGER,
+    PRIMARY KEY (group_id, user_id)
+  );
 `);
 // Migracion segura: agrega columnas nuevas si la base ya existia sin ellas.
 for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
   try { db.exec(`ALTER TABLE reviews ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
-for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status', "TEXT DEFAULT 'none'"]]) {
+for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status', "TEXT DEFAULT 'none'"], ['group_id', 'INTEGER DEFAULT 0'], ['featured_status_group', "TEXT DEFAULT 'none'"]]) {
   try { db.exec(`ALTER TABLE stories ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
 try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (e) { /* ya existe */ }
 for (const [col, def] of [['sec_question', "TEXT DEFAULT ''"], ['sec_answer', "TEXT DEFAULT ''"]]) {
   try { db.exec(`ALTER TABLE users ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
+}
+
+// Seed: grupo "Taller de los jueves - Miguel Bruno" con su contraseña, si no existe.
+{
+  const exists = db.prepare('SELECT id FROM groups WHERE name=?').get('Taller de los jueves - Miguel Bruno');
+  if (!exists) {
+    db.prepare('INSERT INTO groups(name,pass,created) VALUES(?,?,?)')
+      .run('Taller de los jueves - Miguel Bruno', bcrypt.hashSync('abelardo', 8), Date.now());
+  }
 }
 
 // --- Créditos: cálculo automático por carillas ---
@@ -256,10 +275,22 @@ app.delete('/api/admin/user/:id', auth, adminOnly, (req, res) => {
 // --- Publicar texto ---
 const TIPOS = ['Relato', 'Cuento', 'Reseña', 'Capítulo de novela', 'Guión', 'Otro'];
 app.post('/api/stories', auth, (req, res) => {
-  const { title, genre, type, body, readers } = req.body;
+  const { title, genre, type, body, readers, group_id, group_pass } = req.body;
   if (!title || !body || body.trim().length < 20) return res.status(400).json({ error: 'Datos incompletos' });
   const tipo = TIPOS.includes(type) ? type : 'Cuento';
   const n = Math.max(1, Math.min(10, parseInt(readers) || 2));
+  const gid = parseInt(group_id) || 0;
+  // Si publica en un grupo y no es miembro, intentar unirlo con la contraseña provista
+  if (gid) {
+    const g = db.prepare('SELECT * FROM groups WHERE id=?').get(gid);
+    if (!g) return res.status(404).json({ error: 'Grupo no encontrado' });
+    if (!isMember(req.session.uid, gid)) {
+      if (!bcrypt.compareSync(String(group_pass || ''), g.pass)) {
+        return res.status(401).json({ error: 'Para publicar en este grupo necesitás la contraseña correcta.' });
+      }
+      db.prepare('INSERT OR IGNORE INTO group_members(group_id,user_id,joined) VALUES(?,?,?)').run(gid, req.session.uid, Date.now());
+    }
+  }
   const pages = countPages(body);
   const per = costPerReader(pages);
   const cost = per * n;
@@ -268,54 +299,136 @@ app.post('/api/stories', auth, (req, res) => {
     return res.status(400).json({ error: 'Necesitás más créditos. Conseguilos leyendo el material de un colega y dándole una devolución.' });
   }
   db.prepare('UPDATE users SET credits=credits-? WHERE id=?').run(cost, u.id);
-  // length ahora guarda las carillas (número) para calcular la recompensa al leer
-  db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created) VALUES(?,?,?,?,?,?,?)')
-    .run(u.id, title.trim(), genre || '', tipo, String(pages.toFixed(2)), body, Date.now());
+  db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created,group_id) VALUES(?,?,?,?,?,?,?,?)')
+    .run(u.id, title.trim(), genre || '', tipo, String(pages.toFixed(2)), body, Date.now(), gid);
   res.json({ ok: true, spent: cost });
 });
 
 // --- Sala: cuentos de otros que aún no reseñé ---
-app.get('/api/feed', auth, (req, res) => {
+// --- Grupos (salas privadas) ---
+function isMember(uid, gid) {
+  if (!gid) return true; // la general (0) es de todos
+  return !!db.prepare('SELECT 1 FROM group_members WHERE group_id=? AND user_id=?').get(gid, uid);
+}
+
+// Listar grupos: cuáles existen y de cuáles soy miembro
+app.get('/api/groups', auth, (req, res) => {
+  const groups = db.prepare('SELECT id, name, created FROM groups ORDER BY created ASC').all();
+  const out = groups.map(g => ({
+    id: g.id, name: g.name,
+    is_member: isMember(req.session.uid, g.id),
+    members_count: db.prepare('SELECT COUNT(*) AS c FROM group_members WHERE group_id=?').get(g.id).c
+  }));
+  res.json(out);
+});
+
+// Unirse a un grupo con contraseña (queda como miembro para siempre)
+app.post('/api/groups/join', auth, (req, res) => {
+  const { group_id, pass } = req.body;
+  const g = db.prepare('SELECT * FROM groups WHERE id=?').get(group_id);
+  if (!g) return res.status(404).json({ error: 'Grupo no encontrado' });
+  if (isMember(req.session.uid, g.id)) return res.json({ ok: true, already: true });
+  if (!bcrypt.compareSync(String(pass || ''), g.pass)) return res.status(401).json({ error: 'Contraseña incorrecta' });
+  db.prepare('INSERT OR IGNORE INTO group_members(group_id,user_id,joined) VALUES(?,?,?)').run(g.id, req.session.uid, Date.now());
+  res.json({ ok: true });
+});
+
+// Miembros de un grupo (solo si soy miembro)
+app.get('/api/groups/:id/members', auth, (req, res) => {
+  const gid = parseInt(req.params.id);
+  if (!isMember(req.session.uid, gid)) return res.status(403).json({ error: 'No sos miembro de este grupo' });
   const rows = db.prepare(`
-    SELECT s.id,s.title,s.genre,s.length,s.body,s.created,u.name AS author
-    FROM stories s JOIN users u ON u.id=s.author_id
-    WHERE s.author_id != ?
-      AND s.id NOT IN (SELECT story_id FROM reviews WHERE reviewer_id=?)
-    ORDER BY s.created DESC
-  `).all(req.session.uid, req.session.uid);
+    SELECT u.id, u.name, u.role, u.avatar
+    FROM group_members gm JOIN users u ON u.id=gm.user_id
+    WHERE gm.group_id=? ORDER BY gm.joined ASC
+  `).all(gid);
   res.json(rows);
 });
 
-// --- Lógica del Texto de la semana ---
-// El mejor puntuado (no rechazado) es siempre el candidato. Si supera al destacado
-// actual, se le ofrece el puesto a su autor (queda 'pending' hasta que apruebe).
-function refreshFeatured() {
-  const pending = db.prepare("SELECT id FROM stories WHERE featured_status='pending'").get();
-  if (pending) return; // ya hay uno esperando respuesta de su autor
+// --- Feed: textos por sala (general por defecto, o un grupo si soy miembro) ---
+app.get('/api/feed', auth, (req, res) => {
+  const gid = parseInt(req.query.group_id) || 0;
+  if (gid && !isMember(req.session.uid, gid)) return res.status(403).json({ error: 'No sos miembro de este grupo' });
+  const rows = db.prepare(`
+    SELECT s.id,s.title,s.genre,s.type,s.length,s.body,s.created,u.name AS author
+    FROM stories s JOIN users u ON u.id=s.author_id
+    WHERE s.author_id != ?
+      AND s.group_id = ?
+      AND s.id NOT IN (SELECT story_id FROM reviews WHERE reviewer_id=?)
+    ORDER BY s.created DESC
+  `).all(req.session.uid, gid, req.session.uid);
+  res.json(rows);
+});
 
-  // Mejor candidato global que no haya sido rechazado
+// --- Lógica del Texto de la semana (SALA GENERAL) ---
+// Solo considera textos de la general (group_id=0). Requiere aprobación del autor.
+function refreshFeatured() {
+  const pending = db.prepare("SELECT id FROM stories WHERE featured_status='pending' AND group_id=0").get();
+  if (pending) return;
   const cand = db.prepare(`
     SELECT s.id, s.featured_status, AVG(r.rating) AS avg_rating, COUNT(r.id) AS votes
     FROM stories s
     JOIN reviews r ON r.story_id = s.id AND r.rating > 0
-    WHERE s.featured_status != 'declined'
+    WHERE s.featured_status != 'declined' AND s.group_id=0
     GROUP BY s.id
     HAVING votes >= 1
     ORDER BY avg_rating DESC, votes DESC, s.created DESC
     LIMIT 1
   `).get();
   if (!cand) return;
-  // Si el mejor candidato ya es el aprobado, no hay nada que hacer
   if (cand.featured_status === 'approved') return;
-  // Si hay un aprobado actual, solo lo destronamos si el candidato tiene mejor promedio
-  const current = db.prepare("SELECT id, (SELECT AVG(rating) FROM reviews r WHERE r.story_id=stories.id AND r.rating>0) AS avg_rating FROM stories WHERE featured_status='approved'").get();
-  if (current && cand.avg_rating <= current.avg_rating) return; // el actual sigue siendo el mejor o igual
-  // El candidato merece el puesto: se lo ofrecemos a su autor
+  const current = db.prepare("SELECT id, (SELECT AVG(rating) FROM reviews r WHERE r.story_id=stories.id AND r.rating>0) AS avg_rating FROM stories WHERE featured_status='approved' AND group_id=0").get();
+  if (current && cand.avg_rating <= current.avg_rating) return;
   db.prepare("UPDATE stories SET featured_status='pending' WHERE id=?").run(cand.id);
 }
 
-// El texto de la semana PÚBLICO (solo si el autor lo aprobó)
+// --- Texto de la semana de un GRUPO (auto-aprobado, sin pedir permiso) ---
+function refreshFeaturedGroup(gid) {
+  if (!gid) return;
+  const cand = db.prepare(`
+    SELECT s.id, AVG(r.rating) AS avg_rating, COUNT(r.id) AS votes
+    FROM stories s
+    JOIN reviews r ON r.story_id = s.id AND r.rating > 0
+    WHERE s.group_id=?
+    GROUP BY s.id
+    HAVING votes >= 1
+    ORDER BY avg_rating DESC, votes DESC, s.created DESC
+    LIMIT 1
+  `).get(gid);
+  // Limpiar el destacado anterior del grupo y marcar el nuevo (auto-aprobado)
+  db.prepare("UPDATE stories SET featured_status_group='none' WHERE group_id=? AND featured_status_group='approved'").run(gid);
+  if (!cand) return;
+  db.prepare("UPDATE stories SET featured_status_group='approved' WHERE id=?").run(cand.id);
+  // ¿Este texto del grupo es mejor que el mejor de la general? -> ofrecer salto a la general
+  const noPendingGeneral = !db.prepare("SELECT 1 FROM stories WHERE featured_status='pending' AND group_id=0").get();
+  const alreadyOffered = db.prepare("SELECT featured_status FROM stories WHERE id=?").get(cand.id).featured_status;
+  if (noPendingGeneral && alreadyOffered === 'none') {
+    const generalBest = db.prepare("SELECT (SELECT AVG(rating) FROM reviews r WHERE r.story_id=stories.id AND r.rating>0) AS avg_rating FROM stories WHERE featured_status='approved' AND group_id=0").get();
+    const bestAvg = generalBest ? generalBest.avg_rating : 0;
+    if (cand.avg_rating > (bestAvg || 0)) {
+      // Se ofrece al autor que aparezca TAMBIÉN en la general (queda pending en el canal general)
+      db.prepare("UPDATE stories SET featured_status='pending' WHERE id=?").run(cand.id);
+    }
+  }
+}
+
+// El texto de la semana (general si group_id=0, o del grupo). Devuelve también si puede saltar a la general.
 app.get('/api/featured', auth, (req, res) => {
+  const gid = parseInt(req.query.group_id) || 0;
+  if (gid && !isMember(req.session.uid, gid)) return res.status(403).json({ error: 'No sos miembro' });
+  if (gid) {
+    refreshFeaturedGroup(gid);
+    const row = db.prepare(`
+      SELECT s.id, s.title, s.genre, s.type, s.length, s.body, u.name AS author,
+             (SELECT AVG(rating) FROM reviews r WHERE r.story_id=s.id AND r.rating>0) AS avg_rating,
+             (SELECT COUNT(*) FROM likes l WHERE l.story_id=s.id) AS likes,
+             EXISTS(SELECT 1 FROM likes l WHERE l.story_id=s.id AND l.user_id=?) AS liked_by_me
+      FROM stories s JOIN users u ON u.id=s.author_id
+      WHERE s.featured_status_group='approved' AND s.group_id=?
+      LIMIT 1
+    `).get(req.session.uid, gid);
+    return res.json(row || null);
+  }
   refreshFeatured();
   const row = db.prepare(`
     SELECT s.id, s.title, s.genre, s.type, s.length, s.body, u.name AS author,
@@ -329,12 +442,12 @@ app.get('/api/featured', auth, (req, res) => {
   res.json(row || null);
 });
 
-// ¿Tengo un texto elegido esperando mi aprobación como autor?
+// ¿Tengo un texto elegido esperando mi aprobación como autor? (solo general)
 app.get('/api/featured/pending', auth, (req, res) => {
   refreshFeatured();
   const row = db.prepare(`
     SELECT id, title FROM stories
-    WHERE featured_status='pending' AND author_id=?
+    WHERE featured_status='pending' AND author_id=? AND group_id=0
     LIMIT 1
   `).get(req.session.uid);
   res.json(row || null);
@@ -447,11 +560,14 @@ app.get('/api/notifications', auth, (req, res) => {
     kind: 'reveal', id: x.id, title: x.title, author_name: x.author_name, created: x.created
   }));
   // ¿Mi texto fue elegido como texto de la semana y espera mi aprobación?
+  // Si el texto pertenece a un grupo, es la oferta de "saltar a la general".
   const feat = db.prepare(`
-    SELECT id, title, created FROM stories
-    WHERE featured_status='pending' AND author_id=?`).all(req.session.uid);
+    SELECT s.id, s.title, s.created, s.group_id, g.name AS group_name
+    FROM stories s LEFT JOIN groups g ON g.id=s.group_id
+    WHERE s.featured_status='pending' AND s.author_id=?`).all(req.session.uid);
   feat.forEach(x => notes.push({
-    kind: 'featured', id: x.id, title: x.title, created: x.created
+    kind: 'featured', id: x.id, title: x.title, created: x.created,
+    from_group: x.group_id ? true : false, group_name: x.group_name || null
   }));
   notes.sort((a, b) => b.created - a.created);
   res.json({ count: notes.length, notes });
