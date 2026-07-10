@@ -79,6 +79,41 @@
   .section-head h2{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:5px;}
   .section-head p{font-size:12.5px;color:var(--dim);line-height:1.6;max-width:560px;}
 
+  /* === Título neón estilo Bates Motel === */
+  .logo h1{font-family:var(--sans);}
+  .neon-title{white-space:nowrap;}
+  .neon-dim{color:#cfc9bd;opacity:.82;font-weight:700;}
+  .neon-secreto{
+    color:#d8fff5;
+    font-weight:800;
+    animation:neonFlicker 4.2s infinite;
+    text-shadow:
+      0 0 4px #bafff2, 0 0 7px #35e6cf, 0 0 13px #16b8a6,
+      0 0 22px #0e8f82, 0 0 34px #0a6b62;
+  }
+  @keyframes neonFlicker{
+    0%,18%,22%,25%,53%,57%,100%{
+      opacity:1;
+      text-shadow:0 0 4px #bafff2,0 0 7px #35e6cf,0 0 13px #16b8a6,0 0 22px #0e8f82,0 0 34px #0a6b62;
+    }
+    19%,21%,54%,56%{
+      opacity:.55;
+      text-shadow:0 0 3px #35e6cf,0 0 6px #16b8a6;
+    }
+    20%,55%{
+      opacity:.15;
+      text-shadow:none;
+    }
+  }
+  @media(prefers-reduced-motion:reduce){ .neon-secreto{animation:none;} }
+
+  .group-head{background:linear-gradient(155deg,#20222b,#292c37);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:22px;}
+  .group-head #back{margin-bottom:12px;}
+  .group-head h2{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-bottom:12px;color:var(--text);}
+  .group-members{font-size:12.5px;color:var(--dim);line-height:2;}
+  .gm-label{text-transform:uppercase;letter-spacing:.1em;font-size:10.5px;font-weight:700;color:var(--gold);margin-right:6px;}
+  .gm-chip{display:inline-block;background:rgba(201,168,106,.12);color:var(--text);border:1px solid var(--line);padding:3px 11px;border-radius:999px;margin:0 4px 4px 0;font-size:12px;}
+
   /* forms */
   .field{margin-bottom:13px;}
   .field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;}
@@ -329,7 +364,7 @@
 
 <script>
 const $ = (h) => { const t=document.createElement('template'); t.innerHTML=h.trim(); return t.content.firstChild; };
-let ME=null, TAB='sala';
+let ME=null, TAB='sala', GROUP_CTX=0, GROUPS_CACHE=[];
 
 function logoSVG(){
   return `<svg width="42" height="42" viewBox="0 0 42 42">
@@ -338,6 +373,9 @@ function logoSVG(){
     <circle cx="21" cy="21" r="4.6" fill="#a8455e"/>
     <circle cx="22.4" cy="19.6" r="1.4" fill="#f5f2ea"/>
   </svg>`;
+}
+function neonTitle(){
+  return `<span class="neon-title"><span class="neon-dim">El lector</span> <span class="neon-secreto">secreto</span></span>`;
 }
 function toast(msg){
   const el=$(`<div class="toast">${msg}</div>`);
@@ -379,7 +417,7 @@ function renderAuth(mode='login'){
   const app=document.getElementById('app'); app.innerHTML='';
   const box=$(`<div class="authbox"></div>`);
   box.appendChild($(`<div class="logo" style="justify-content:center;margin-bottom:6px">${logoSVG()}
-    <div><h1>El lector secreto</h1></div></div>`));
+    <div><h1>${neonTitle()}</h1></div></div>`));
   box.appendChild($(`<p class="auth-tagline">Donde las historias se leen<br>antes de existir del todo.</p>`));
 
   const card=$(`<div class="card"><div class="ci"></div></div>`);
@@ -441,7 +479,7 @@ function renderAuth(mode='login'){
 function renderRecover(){
   const app=document.getElementById('app'); app.innerHTML='';
   const box=$(`<div class="authbox"></div>`);
-  box.appendChild($(`<div class="logo" style="justify-content:center;margin-bottom:6px">${logoSVG()}<div><h1>El lector secreto</h1></div></div>`));
+  box.appendChild($(`<div class="logo" style="justify-content:center;margin-bottom:6px">${logoSVG()}<div><h1>${neonTitle()}</h1></div></div>`));
   box.appendChild($(`<p class="auth-tagline">Recuperá tu acceso.</p>`));
   const card=$(`<div class="card"><div class="ci"></div></div>`);
   const ci=card.querySelector('.ci');
@@ -490,7 +528,7 @@ function renderApp(){
   const notifCount = window.__notifCount||0;
   const bell = `<button class="bell" id="bell" title="Notificaciones">${bellSVG()}${notifCount>0?`<span class="bell-badge">${notifCount}</span>`:''}</button>`;
   app.appendChild($(`<div class="top">
-    <div class="logo">${logoSVG()}<div style="display:flex;align-items:center"><div><h1>El lector secreto</h1><small>Hola, ${ME.name}</small></div><button class="help-btn" id="help" title="Cómo funciona">?</button></div></div>
+    <div class="logo">${logoSVG()}<div style="display:flex;align-items:center"><div><h1>${neonTitle()}</h1><small>Hola, ${ME.name}</small></div><button class="help-btn" id="help" title="Cómo funciona">?</button></div></div>
     <div style="display:flex;align-items:center;gap:12px">
       ${bell}
       <div class="pill"><span class="n">${ME.credits}</span><span class="l">créditos</span>
@@ -500,14 +538,15 @@ function renderApp(){
 
   const tabs=$(`<div class="tabs">
     <button class="tab ${TAB==='sala'?'on':''}" data-t="sala">Sala de lectura</button>
-    <button class="tab ${TAB==='escritores'?'on':''}" data-t="escritores">Escritores</button>
     <button class="tab ${TAB==='pub'?'on':''}" data-t="pub">Publicar</button>
+    <button class="tab ${TAB==='grupos'?'on':''}" data-t="grupos">Grupos</button>
     <button class="tab ${TAB==='mios'?'on':''}" data-t="mios">Mis textos</button>
+    <button class="tab ${TAB==='escritores'?'on':''}" data-t="escritores">Escritores</button>
     <button class="tab ${TAB==='perfil'?'on':''}" data-t="perfil">Perfil</button>
     ${ME.is_admin?`<button class="tab ${TAB==='admin'?'on':''}" data-t="admin">Admin</button>`:''}
   </div>`);
   app.appendChild(tabs);
-  tabs.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;renderApp();});
+  tabs.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;GROUP_CTX=0;renderApp();});
   document.getElementById('logout').onclick=async()=>{await api('/api/logout',{});ME=null;renderAuth();};
   document.getElementById('help').onclick=()=>showHowItWorks(false);
   document.getElementById('bell').onclick=()=>{TAB='notif';renderApp();};
@@ -516,8 +555,14 @@ function renderApp(){
   if(TAB==='sala'){
     const layout=$(`<div class="layout"><div class="col-main"></div><div class="col-side"></div></div>`);
     body.appendChild(layout);
-    renderSala(layout.querySelector('.col-main'));
+    renderSala(layout.querySelector('.col-main'), 0);
     renderEditorial(layout.querySelector('.col-side'));
+  }
+  else if(TAB==='grupos') renderGrupos(body);
+  else if(TAB==='grupo-sala'){
+    const layout=$(`<div class="layout"><div class="col-main"></div><div class="col-side"></div></div>`);
+    body.appendChild(layout);
+    renderGrupoSala(layout.querySelector('.col-main'), layout.querySelector('.col-side'));
   }
   else if(TAB==='escritores') renderEscritores(body);
   else if(TAB==='pub') renderPub(body);
@@ -575,19 +620,24 @@ async function renderNotificaciones(el){
       acts.appendChild(yes); acts.appendChild(no);
       el.appendChild(c);
     } else if(nt.kind==='featured'){
+      const fromGroup = nt.from_group;
+      const title = fromGroup ? '¡Tu texto brilla en el grupo! 🌟' : '¡Tu texto fue elegido! 🌟';
+      const txt = fromGroup
+        ? `Tu texto <b>“${esc(nt.title)}”</b> es el texto de la semana del grupo <b>${esc(nt.group_name||'')}</b>, y además tiene mejor puntaje que el destacado de la comunidad general. ¿Querés que también aparezca como Texto de la semana en la <b>comunidad general</b> (lo verá todo el mundo), o preferís que quede <b>solo en el grupo</b>?`
+        : `Tu texto <b>“${esc(nt.title)}”</b> es el mejor puntuado de la semana. ¿Querés que se muestre <b>públicamente</b> a toda la comunidad como Texto de la semana? (Hasta ahora solo lo vieron tus lectores secretos.)`;
       const c=$(`<div class="notif-card">
         <div class="notif-ico gold">${starMini()}</div>
         <div class="notif-body">
-          <div class="notif-title">¡Tu texto fue elegido! 🌟</div>
-          <div class="notif-txt">Tu texto <b>“${esc(nt.title)}”</b> es el mejor puntuado de la semana. ¿Querés que se muestre <b>públicamente</b> a toda la comunidad como Texto de la semana? (Hasta ahora solo lo vieron tus lectores secretos.)</div>
+          <div class="notif-title">${title}</div>
+          <div class="notif-txt">${txt}</div>
           <div class="notif-actions"></div>
         </div>
       </div>`);
       const acts=c.querySelector('.notif-actions');
-      const yes=$(`<button class="btn b-gold sm">Sí, mostrarlo</button>`);
-      const no=$(`<button class="btn b-ghost-d sm">No por ahora</button>`);
-      yes.onclick=async()=>{ try{ await api('/api/featured/respond',{story_id:nt.id,accept:true}); toast('¡Listo! Tu texto es el destacado de la comunidad.'); renderApp(); }catch(e){toast(e.message);} };
-      no.onclick=async()=>{ try{ await api('/api/featured/respond',{story_id:nt.id,accept:false}); toast('Entendido, no se mostrará. El puesto pasa al siguiente.'); renderApp(); }catch(e){toast(e.message);} };
+      const yes=$(`<button class="btn b-gold sm">${fromGroup?'Sí, también en la general':'Sí, mostrarlo'}</button>`);
+      const no=$(`<button class="btn b-ghost-d sm">${fromGroup?'Solo en el grupo':'No por ahora'}</button>`);
+      yes.onclick=async()=>{ try{ await api('/api/featured/respond',{story_id:nt.id,accept:true}); toast(fromGroup?'¡Listo! Tu texto también estará en la comunidad general.':'¡Listo! Tu texto es el destacado de la comunidad.'); renderApp(); }catch(e){toast(e.message);} };
+      no.onclick=async()=>{ try{ await api('/api/featured/respond',{story_id:nt.id,accept:false}); toast(fromGroup?'Perfecto, tu texto queda solo en el grupo.':'Entendido, no se mostrará. El puesto pasa al siguiente.'); renderApp(); }catch(e){toast(e.message);} };
       acts.appendChild(yes); acts.appendChild(no);
       el.appendChild(c);
     }
@@ -768,12 +818,14 @@ function openEditorialModal(it){
 function featherSVG(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>`; }
 
 // ---------- SALA ----------
-async function renderSala(el){
+async function renderSala(el, gid){
   el.innerHTML='';
+  gid = gid||0;
+  const q = gid ? ('?group_id='+gid) : '';
 
   // Texto de la semana (aprobado por su autor) - estilo blog
   try{
-    const f=await api('/api/featured');
+    const f=await api('/api/featured'+q);
     if(f && f.avg_rating!=null){
       const avg=Math.round(f.avg_rating*10)/10;
       const excerpt=f.body.length>420 ? f.body.slice(0,420) : f.body;
@@ -809,7 +861,7 @@ async function renderSala(el){
 
   el.appendChild($(`<div class="section-head"><h2>En la sala</h2><p>Leé un texto y dejá una devolución completa para ganar créditos. Cuanto más largo el texto, más créditos ganás: 2 por cada tramo de 5 carillas.</p></div>`));
   let feed;
-  try{feed=await api('/api/feed');}catch(e){toast(e.message);return;}
+  try{feed=await api('/api/feed'+q);}catch(e){toast(e.message);return;}
   if(!feed.length){el.appendChild($(`<div class="empty-art"><div class="empty-art-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div><div class="empty-art-txt">Todavía no hay textos esperándote.<br><span>El silencio antes de la primera página. Volvé pronto.</span></div></div>`));return;}
   feed.forEach(s=>{
     const rw=rewardLabel(s);
@@ -822,6 +874,86 @@ async function renderSala(el){
     c.querySelector('button').onclick=()=>openRead(s);
     el.appendChild(c);
   });
+}
+
+// ---------- GRUPOS: lista de salas privadas ----------
+async function renderGrupos(el){
+  el.innerHTML='';
+  el.appendChild($(`<div class="section-head"><h2>Grupos</h2><p>Salas privadas de escritura. Entrá con la contraseña que te compartieron; una vez adentro, quedás como miembro para siempre.</p></div>`));
+  let groups;
+  try{ groups=await api('/api/groups'); GROUPS_CACHE=groups; }catch(e){ toast(e.message); return; }
+  if(!groups.length){ el.appendChild($(`<div class="empty">Todavía no hay grupos.</div>`)); return; }
+  groups.forEach(g=>{
+    const c=$(`<div class="card"><div class="ci">
+      <span class="tag">${g.is_member?'Sos miembro':'Privado'}</span>
+      <div class="ttl">${esc(g.name)}</div>
+      <div class="meta"><span>${g.members_count} miembro${g.members_count!==1?'s':''}</span></div>
+      <div class="row"></div>
+    </div></div>`);
+    const row=c.querySelector('.row');
+    if(g.is_member){
+      const enter=$(`<button class="btn b-wine sm">Entrar a la sala</button>`);
+      enter.onclick=()=>{ GROUP_CTX=g.id; TAB='grupo-sala'; renderApp(); };
+      row.appendChild(enter);
+    }else{
+      const join=$(`<button class="btn b-gold sm">Entrar con contraseña</button>`);
+      join.onclick=()=>openJoinModal(g);
+      row.appendChild(join);
+    }
+    el.appendChild(c);
+  });
+}
+function openJoinModal(g){
+  const ov=$(`<div class="ov"></div>`);
+  const m=$(`<div class="modal" style="max-width:440px">
+    <h2>${esc(g.name)}</h2>
+    <div class="sub">Este grupo es privado. Ingresá la contraseña para entrar.</div>
+    <div class="field"><label>Contraseña del grupo</label><input type="password" id="gp" placeholder="••••••"></div>
+    <div class="err" id="ge" style="display:none"></div>
+    <div class="mact"><button class="btn b-ghost-d" id="cancel">Cancelar</button><button class="btn b-wine" id="ok">Entrar</button></div>
+  </div>`);
+  ov.appendChild(m); document.body.appendChild(ov);
+  const err=m.querySelector('#ge');
+  m.querySelector('#cancel').onclick=()=>ov.remove();
+  m.querySelector('#gp').onkeydown=(e)=>{if(e.key==='Enter')m.querySelector('#ok').click();};
+  m.querySelector('#ok').onclick=async()=>{
+    err.style.display='none';
+    try{
+      await api('/api/groups/join',{group_id:g.id,pass:m.querySelector('#gp').value});
+      ov.remove(); toast('¡Bienvenido/a al grupo!'); GROUP_CTX=g.id; TAB='grupo-sala'; renderApp();
+    }catch(e){ err.textContent=e.message; err.style.display='block'; }
+  };
+  ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
+}
+
+// ---------- SALA DE UN GRUPO ----------
+async function renderGrupoSala(main, side){
+  const gid=GROUP_CTX;
+  // Datos del grupo (nombre) desde el cache o pidiendo de nuevo
+  let g = GROUPS_CACHE.find(x=>x.id===gid);
+  if(!g){ try{ const gs=await api('/api/groups'); GROUPS_CACHE=gs; g=gs.find(x=>x.id===gid); }catch(e){} }
+  main.innerHTML='';
+  // Encabezado del grupo
+  const head=$(`<div class="group-head">
+    <button class="btn b-ghost sm" id="back">← Volver a Grupos</button>
+    <h2>${g?esc(g.name):'Grupo'}</h2>
+    <div class="group-members" id="gm">Cargando miembros…</div>
+  </div>`);
+  main.appendChild(head);
+  head.querySelector('#back').onclick=()=>{ TAB='grupos'; GROUP_CTX=0; renderApp(); };
+  // Miembros
+  try{
+    const members=await api('/api/groups/'+gid+'/members');
+    const gm=head.querySelector('#gm');
+    gm.innerHTML='<span class="gm-label">Miembros:</span> '+members.map(m=>`<span class="gm-chip">${esc(m.name)}</span>`).join('');
+  }catch(e){ head.querySelector('#gm').textContent=''; }
+  // Sala del grupo (reutiliza renderSala con el gid) en un contenedor aparte
+  const salaWrap=$(`<div></div>`); main.appendChild(salaWrap);
+  renderSala(salaWrap, gid);
+  // La columna del editor NO va en grupos (es solo de la general): mostramos algo propio
+  side.innerHTML='';
+  side.appendChild($(`<div class="side-head">${featherSVG()} Sala privada</div>`));
+  side.appendChild($(`<div class="ed-card"><div class="ed-body">Este es un espacio cerrado. Los textos y devoluciones acá solo los ven los miembros del grupo. Publicá eligiendo este grupo como destino desde la solapa <b>Publicar</b>.</div></div>`));
 }
 
 function openRead(s){
@@ -908,7 +1040,7 @@ function makeStarPicker(onPick){
 }
 
 // ---------- PUBLICAR ----------
-function renderPub(el){
+async function renderPub(el){
   el.innerHTML='';
   const card=$(`<div class="card"><div class="ci dark" style="color:var(--ink)"></div></div>`);
   const ci=card.querySelector('.ci');
@@ -927,8 +1059,20 @@ function renderPub(el){
   const genreF=$(`<input placeholder="Ej: Realismo, fantasía, terror…">`);
   const readersF=$(`<input type="number" min="1" max="10" value="2">`);
   const bodyF=$(`<textarea rows="9" placeholder="Pegá acá tu texto"></textarea>`);
+
+  // Selector de destino: comunidad general (default) o un grupo
+  let groups=[];
+  try{ groups=await api('/api/groups'); GROUPS_CACHE=groups; }catch(e){}
+  const destF=$(`<select><option value="0">Comunidad general</option>${groups.map(g=>`<option value="${g.id}">${esc(g.name)}${g.is_member?'':' (privado)'}</option>`).join('')}</select>`);
+  // Campo de contraseña que aparece solo si elige un grupo del que NO es miembro
+  const passWrap=$(`<div style="display:none"></div>`);
+  const passF=$(`<input type="password" placeholder="Contraseña del grupo">`);
+  passWrap.appendChild(wrapField('Contraseña del grupo (para unirte)', passF));
+
   ci.appendChild(wrapField('Título', titleF));
   ci.appendChild(wrapField('Tipo de texto', typeF));
+  ci.appendChild(wrapField('¿Dónde querés publicar?', destF));
+  ci.appendChild(passWrap);
   ci.appendChild(wrapField('Género', genreF));
   ci.appendChild(wrapField('¿Cuántos lectores secretos querés?', readersF));
   ci.appendChild(wrapField('Texto', bodyF));
@@ -940,7 +1084,13 @@ function renderPub(el){
   card.appendChild($(`<div></div>`));
   el.appendChild(card);
 
-  // Mismo cálculo que el servidor: 275 palabras = 1 carilla; tramo cada 5 carillas
+  // Mostrar el campo de contraseña solo si elige un grupo del que no es miembro
+  destF.onchange=()=>{
+    const gid=parseInt(destF.value)||0;
+    const g=groups.find(x=>x.id===gid);
+    passWrap.style.display = (gid && g && !g.is_member) ? 'block' : 'none';
+  };
+
   const pagesOf=()=>{ const w=bodyF.value.trim().split(/\s+/).filter(Boolean).length; return {w, p:w/275}; };
   const tierOf=(p)=>Math.max(1, Math.ceil((p-1e-9)/5));
   const update=()=>{
@@ -960,9 +1110,15 @@ function renderPub(el){
 
   btn.onclick=async()=>{
     err.style.display='none';
+    const gid=parseInt(destF.value)||0;
+    const payload={title:titleF.value,type:typeF.value,genre:genreF.value,readers:readersF.value,body:bodyF.value,group_id:gid};
+    const g=groups.find(x=>x.id===gid);
+    if(gid && g && !g.is_member) payload.group_pass=passF.value;
     try{
-      const r=await api('/api/stories',{title:titleF.value,type:typeF.value,genre:genreF.value,readers:readersF.value,body:bodyF.value});
-      ME.credits-=r.spent; toast(`Texto publicado. Se reservaron ${r.spent} créditos.`); TAB='mios'; renderApp();
+      const r=await api('/api/stories',payload);
+      ME.credits-=r.spent;
+      toast(gid?`Texto publicado en el grupo. Se reservaron ${r.spent} créditos.`:`Texto publicado. Se reservaron ${r.spent} créditos.`);
+      TAB='mios'; renderApp();
     }catch(e){err.textContent=e.message;err.style.display='block';}
   };
 }
