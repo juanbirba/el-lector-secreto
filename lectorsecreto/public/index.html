@@ -1144,7 +1144,23 @@ async function renderMios(el){
     let open=false;
     const txtBox=$(`<div class="selftext" style="display:none">${esc(s.body)}</div>`);
     seeBtn.onclick=()=>{ open=!open; txtBox.style.display=open?'block':'none'; seeBtn.textContent=open?'Ocultar texto':'Releer mi texto'; };
-    seeRow.appendChild(seeBtn); ci.appendChild(seeRow); ci.appendChild(txtBox);
+    seeRow.appendChild(seeBtn);
+    // Borrar: solo si el texto todavía no recibió devoluciones (se devuelven los créditos)
+    if(!s.reviews.length){
+      const delBtn=$(`<button class="btn b-ghost-d sm" style="border-color:#d99;color:#a44">Borrar</button>`);
+      delBtn.onclick=async()=>{
+        const refund=s.cost_paid||0;
+        if(!confirm(`¿Borrar "${s.title}"? Se te devolverán ${refund} crédito${refund!==1?'s':''}. Esta acción no se puede deshacer.`)) return;
+        try{
+          const r=await api('/api/mine/story/'+s.id, null, 'DELETE');
+          if(r.refunded) ME.credits+=r.refunded;
+          toast(r.refunded?`Texto borrado. +${r.refunded} créditos devueltos.`:'Texto borrado.');
+          renderApp();
+        }catch(e){toast(e.message);}
+      };
+      seeRow.appendChild(delBtn);
+    }
+    ci.appendChild(seeRow); ci.appendChild(txtBox);
     if(s.reviews.length){
       const box=$(`<div style="margin-top:10px"></div>`);
       s.reviews.forEach(r=>{
