@@ -22,7 +22,8 @@ db.exec(`
     length TEXT, body TEXT, created INTEGER,
     featured_status TEXT DEFAULT 'none',
     group_id INTEGER DEFAULT 0,
-    featured_status_group TEXT DEFAULT 'none'
+    featured_status_group TEXT DEFAULT 'none',
+    cost_paid INTEGER DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS reviews(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +53,7 @@ db.exec(`
 for (const [col, def] of [['rating', 'REAL DEFAULT 0'], ['reveal_status', "TEXT DEFAULT 'none'"]]) {
   try { db.exec(`ALTER TABLE reviews ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
-for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status', "TEXT DEFAULT 'none'"], ['group_id', 'INTEGER DEFAULT 0'], ['featured_status_group', "TEXT DEFAULT 'none'"]]) {
+for (const [col, def] of [['type', "TEXT DEFAULT 'Cuento'"], ['featured_status', "TEXT DEFAULT 'none'"], ['group_id', 'INTEGER DEFAULT 0'], ['featured_status_group', "TEXT DEFAULT 'none'"], ['cost_paid', 'INTEGER DEFAULT 0']]) {
   try { db.exec(`ALTER TABLE stories ADD COLUMN ${col} ${def}`); } catch (e) { /* ya existe */ }
 }
 try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch (e) { /* ya existe */ }
@@ -66,6 +67,20 @@ for (const [col, def] of [['sec_question', "TEXT DEFAULT ''"], ['sec_answer', "T
   if (!exists) {
     db.prepare('INSERT INTO groups(name,pass,created) VALUES(?,?,?)')
       .run('Taller de los jueves - Miguel Bruno', bcrypt.hashSync('abelardo', 8), Date.now());
+  }
+}
+
+// Tabla de marcas internas (para acciones que deben correr una sola vez).
+db.exec("CREATE TABLE IF NOT EXISTS flags(name TEXT PRIMARY KEY, done INTEGER)");
+// Dar 100 créditos al admin, una única vez (no se repite en cada reinicio de Railway).
+{
+  const flag = db.prepare("SELECT 1 FROM flags WHERE name='admin_100_credits'").get();
+  if (!flag) {
+    const admin = db.prepare('SELECT id FROM users WHERE email=?').get('juanbirba@gmail.com');
+    if (admin) {
+      db.prepare('UPDATE users SET credits=100 WHERE id=?').run(admin.id);
+      db.prepare("INSERT INTO flags(name,done) VALUES('admin_100_credits',1)").run();
+    }
   }
 }
 
@@ -299,9 +314,27 @@ app.post('/api/stories', auth, (req, res) => {
     return res.status(400).json({ error: 'Necesitás más créditos. Conseguilos leyendo el material de un colega y dándole una devolución.' });
   }
   db.prepare('UPDATE users SET credits=credits-? WHERE id=?').run(cost, u.id);
-  db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created,group_id) VALUES(?,?,?,?,?,?,?,?)')
-    .run(u.id, title.trim(), genre || '', tipo, String(pages.toFixed(2)), body, Date.now(), gid);
+  db.prepare('INSERT INTO stories(author_id,title,genre,type,length,body,created,group_id,cost_paid) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run(u.id, title.trim(), genre || '', tipo, String(pages.toFixed(2)), body, Date.now(), gid, cost);
   res.json({ ok: true, spent: cost });
+});
+
+// --- El autor borra su propio texto (solo si no recibió devoluciones; se le devuelven los créditos) ---
+app.delete('/api/mine/story/:id', auth, (req, res) => {
+  const id = parseInt(req.params.id);
+  const s = db.prepare('SELECT * FROM stories WHERE id=?').get(id);
+  if (!s) return res.status(404).json({ error: 'Texto no encontrado' });
+  if (s.author_id !== req.session.uid) return res.status(403).json({ error: 'No es tu texto' });
+  const reviewCount = db.prepare('SELECT COUNT(*) AS c FROM reviews WHERE story_id=?').get(id).c;
+  if (reviewCount > 0) {
+    return res.status(400).json({ error: 'No podés borrar un texto que ya recibió devoluciones.' });
+  }
+  // Sin devoluciones: se puede borrar y se devuelven los créditos pagados
+  db.prepare('DELETE FROM likes WHERE story_id=?').run(id);
+  db.prepare('DELETE FROM stories WHERE id=?').run(id);
+  const refund = s.cost_paid || 0;
+  if (refund > 0) db.prepare('UPDATE users SET credits=credits+? WHERE id=?').run(refund, req.session.uid);
+  res.json({ ok: true, refunded: refund });
 });
 
 // --- Sala: cuentos de otros que aún no reseñé ---
